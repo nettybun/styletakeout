@@ -1,0 +1,12 @@
+{
+  "name": "style-takeout",
+  "version": "1.0.0",
+  "description": "Take CSS out of JS",
+  "main": "babel-plugin-style-takeout.js",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@emotion/stylis": "^0.8.5"
+  }
+}
