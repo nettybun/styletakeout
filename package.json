@@ -2,11 +2,15 @@
   "name": "style-takeout",
   "version": "1.0.0",
   "description": "Take CSS out of JS",
-  "main": "babel-plugin-style-takeout.js",
+  "main": "style-takeout.macro.js",
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@emotion/stylis": "^0.8.5"
+  },
+  "devDependencies": {
+    "@types/babel-plugin-macros": "^2.8.2",
+    "babel-plugin-macros": "^2.8.0"
   }
 }
