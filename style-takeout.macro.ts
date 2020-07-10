@@ -22,7 +22,14 @@ const styleTakeoutMacro: MacroHandler = ({ references }) => {
 
 };
 
-export default createMacro(styleTakeoutMacro);
+type Exports = {
+  css: (statics: TemplateStringsArray, ...variables: string[]) => string;
+  injectGlobal: (statics: TemplateStringsArray, ...variables: string[]) => void;
+};
+
+// Since `createMacro` is typed as `() => any`...
+const { css, injectGlobal } = createMacro(styleTakeoutMacro) as Exports;
+export { css, injectGlobal };
 
 const cssTakeout = ({ types: t }: { types: typeof Types }): PluginObj =>
   ({
