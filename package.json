@@ -3,13 +3,23 @@
   "version": "1.0.0",
   "description": "Take CSS out of JS",
   "main": "style-takeout.macro.js",
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "css",
+    "styled-components",
+    "babel-plugin-macros"
+  ],
+  "author": "Gen Hames",
   "license": "MIT",
+  "scripts": {
+    "build": "babel --no-babelrc . --out-dir . --extensions .ts --ignore node_modules  --plugins=@babel/plugin-transform-typescript"
+  },
   "dependencies": {
     "@emotion/stylis": "^0.8.5"
   },
   "devDependencies": {
+    "@babel/cli": "^7.10.4",
+    "@babel/core": "^7.10.4",
+    "@babel/plugin-transform-typescript": "^7.10.4",
     "@types/babel-plugin-macros": "^2.8.2",
     "babel-plugin-macros": "^2.8.0"
   }
