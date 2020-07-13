@@ -27,7 +27,8 @@ const mergeTemplateExpression = (node: t.TaggedTemplateExpression): string => {
 };
 
 const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
-  references.injectGlobal.forEach(referencePath => {
+  const { injectGlobal, css } = references;
+  if (injectGlobal) injectGlobal.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     if (!t.isTaggedTemplateExpression(node)) {
@@ -40,7 +41,7 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     // XXX: Why? Need to see the AST
     parentPath.remove();
   });
-  references.css.forEach(referencePath => {
+  if (css) css.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     if (!t.isTaggedTemplateExpression(node)) {
