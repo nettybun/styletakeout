@@ -16,6 +16,9 @@ const outFile = 'serve/takeout.css';
 const injectGlobalSnippets: string[] = [];
 const cssSnippets: string[] = [];
 
+let processExitHook = () => {};
+process.on('exit', () => processExitHook());
+
 const mergeTemplateExpression = (node: t.TaggedTemplateExpression): string => {
   let string = '';
   const { quasis, expressions } = node.quasi;
@@ -66,9 +69,15 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     parentPath.replaceWith(t.stringLiteral(`${classPrefix}${tag}`));
   });
 
-  console.log('CSS to:', outFile);
+  processExitHook = () => {
+    const total = injectGlobalSnippets.length + cssSnippets.length;
+    console.log(`Moved ${total} snippets of CSS into:`, outFile);
+    // Add last newline
+    injectGlobalSnippets.push('');
+    cssSnippets.push('');
   fs.writeFileSync(outFile, injectGlobalSnippets.join('\n'));
   fs.appendFileSync(outFile, cssSnippets.join('\n'));
+};
 };
 
 // Since `createMacro` is typed as `() => any`...
