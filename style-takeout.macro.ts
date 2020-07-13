@@ -57,7 +57,7 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     }
     const { filename } = state;
     const { line, column } = node.loc.start;
-    const tag = `${path.basename(filename)}#${line}:${column}`;
+    const tag = `${classPrefix}${path.basename(filename)}#${line}:${column}`;
     const tagSafe = tag.replace(/([.#:])/g, (_, match) => `\\${match}`);
 
     const styles = mergeTemplateExpression(node);
@@ -66,7 +66,7 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     const indentedStyles = cssIndent + styles.replace(/\n/g, `\n${cssIndent}`);
     cssSnippets.push(`.${tagSafe} {\n${indentedStyles}\n}`);
 
-    parentPath.replaceWith(t.stringLiteral(`${classPrefix}${tag}`));
+    parentPath.replaceWith(t.stringLiteral(`${tag}`));
   });
 
   processExitHook = () => {
@@ -75,9 +75,9 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     // Add last newline
     injectGlobalSnippets.push('');
     cssSnippets.push('');
-  fs.writeFileSync(outFile, injectGlobalSnippets.join('\n'));
-  fs.appendFileSync(outFile, cssSnippets.join('\n'));
-};
+    fs.writeFileSync(outFile, injectGlobalSnippets.join('\n'));
+    fs.appendFileSync(outFile, cssSnippets.join('\n'));
+  };
 };
 
 // Since `createMacro` is typed as `() => any`...
