@@ -10,7 +10,7 @@ import path from 'path';
 import type { PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
-/** CSS classes start with this: i.e `css-index.tsx#32:16` */
+/** CSS classes start with this: i.e `css-index.tsx:32:16` */
 const classPrefix = 'css-';
 const outFile = 'serve/takeout.css';
 // They didn't export their `Options` object 🙄
@@ -64,7 +64,7 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   }
   const { filename } = state;
   const { line, column } = node.loc.start;
-  return `${path.basename(filename)}#${line}:${column}`;
+  return `${path.basename(filename)}:${line}:${column}`;
 };
 
 const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
@@ -90,7 +90,7 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     const styles = mergeTemplateExpression(node);
 
     const tag = `${classPrefix}${loc}`;
-    const tagSafe = tag.replace(/([.#:])/g, (_, match) => `\\${match}`);
+    const tagSafe = tag.replace(/([.:])/g, (_, match) => `\\${match}`);
     const stylesCompiled = serialize(compile(`.${tagSafe} { ${styles} }`), stringify);
     const stylesPretty = cssBeautify(stylesCompiled, beautifyOptions);
 
