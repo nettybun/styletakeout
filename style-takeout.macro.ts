@@ -80,8 +80,4 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
   };
 };
 
-// Since `createMacro` is typed as `() => any`...
-export function css(statics: TemplateStringsArray, ...variables: string[]): string { return ''; }
-export function injectGlobal(statics: TemplateStringsArray, ...variables: string[]): void {}
-
 export default createMacro(styleTakeoutMacro);
