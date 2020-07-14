@@ -104,7 +104,6 @@ const toBlob = (x: Map<string, string>) => {
   let blob = '';
   // eslint-disable-next-line prefer-template
   for (const style of x.values()) blob += style + '\n';
-  blob += '\n';
   return blob;
 };
 
