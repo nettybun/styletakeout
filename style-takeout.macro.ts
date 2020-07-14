@@ -16,8 +16,27 @@ const outFile = 'serve/takeout.css';
 const injectGlobalSnippets: string[] = [];
 const cssSnippets: string[] = [];
 
-let processExitHook = () => {};
-process.on('exit', () => processExitHook());
+// Need to know when Babel is done compilation. Patch process.stdout to search
+// for @babel/cli. If stdout never emits a sign of running in @babel/cli then
+// process.exit will be used as a fallback; which is clearly after compilation.
+let runningBabelCLI = false;
+process.on('exit', () => {
+  if (runningBabelCLI) return;
+  writeStyles();
+});
+
+// Can't `process.stdout.on('data', ...` because it's a Writeable stream
+const stdoutWrite = process.stdout.write;
+// @ts-ignore Typescript's never heard of wrapping overloaded functions before
+process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
+  const [bufferString] = args;
+  const string = bufferString.toString();
+  if (string && string.startsWith('Successfully compiled')) {
+    runningBabelCLI = true;
+    writeStyles();
+  }
+  return stdoutWrite.apply(process.stdout, args);
+};
 
 const mergeTemplateExpression = (node: t.TaggedTemplateExpression): string => {
   let string = '';
@@ -68,16 +87,15 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
 
     parentPath.replaceWith(t.stringLiteral(`${tag}`));
   });
+};
 
-  processExitHook = () => {
+// eslint-disable-next-line prefer-template
+const toBlob = (x: string[]) => x.join('\n') + '\n';
+const writeStyles = () => {
     const total = injectGlobalSnippets.length + cssSnippets.length;
     console.log(`Moved ${total} snippets of CSS into:`, outFile);
-    // Add last newline
-    injectGlobalSnippets.push('');
-    cssSnippets.push('');
-    fs.writeFileSync(outFile, injectGlobalSnippets.join('\n'));
-    fs.appendFileSync(outFile, cssSnippets.join('\n'));
-  };
+  fs.writeFileSync(outFile, toBlob(injectGlobalSnippets));
+  fs.appendFileSync(outFile, toBlob(cssSnippets));
 };
 
 export default createMacro(styleTakeoutMacro);
