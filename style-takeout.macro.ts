@@ -14,17 +14,15 @@ const cssIndent = '  ';
 /** Path to CSS output file */
 const outFile = 'serve/takeout.css';
 
-const injectGlobalSnippets: string[] = [];
-const cssSnippets: string[] = [];
+let snippetIterUpdates = 0;
+const injectGlobalSnippets = new Map<string, string>();
+const cssSnippets = new Map<string, string>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
 // for @babel/cli. If stdout never emits a sign of running in @babel/cli then
 // process.exit will be used as a fallback; which is clearly after compilation.
 let runningBabelCLI = false;
-process.on('exit', () => {
-  if (runningBabelCLI) return;
-  writeStyles();
-});
+process.on('exit', () => !runningBabelCLI && writeStyles());
 
 // Can't `process.stdout.on('data', ...` because it's a Writeable stream
 const stdoutWrite = process.stdout.write;
@@ -73,7 +71,8 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     const styles = mergeTemplateExpression(node);
     // TODO: Do stylis work with global namespace plugin
 
-    injectGlobalSnippets.push(`/* ${loc} */\n${styles}`);
+    injectGlobalSnippets.set(loc, `/* ${loc} */\n${styles}`);
+    snippetIterUpdates++;
     parentPath.remove();
   });
 
@@ -88,19 +87,36 @@ const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
     const tagSafe = tag.replace(/([.#:])/g, (_, match) => `\\${match}`);
 
     const indentedStyles = cssIndent + styles.replace(/\n/g, `\n${cssIndent}`);
-    cssSnippets.push(`.${tagSafe} {\n${indentedStyles}\n}`);
+    cssSnippets.set(loc, `.${tagSafe} {\n${indentedStyles}\n}`);
+    snippetIterUpdates++;
 
     parentPath.replaceWith(t.stringLiteral(tag));
   });
 };
 
-// eslint-disable-next-line prefer-template
-const toBlob = (x: string[]) => x.join('\n') + '\n';
+const toBlob = (x: Map<string, string>) => {
+  let blob = '';
+  // eslint-disable-next-line prefer-template
+  for (const style of x.values()) blob += style + '\n';
+  blob += '\n';
+  return blob;
+};
+
+let starting = true;
 const writeStyles = () => {
-  const total = injectGlobalSnippets.length + cssSnippets.length;
-  console.log(`Moved ${total} snippets of CSS into:`, outFile);
+  const updates = snippetIterUpdates;
+  const total = injectGlobalSnippets.size + cssSnippets.size;
+  snippetIterUpdates = 0;
+
   fs.writeFileSync(outFile, toBlob(injectGlobalSnippets));
   fs.appendFileSync(outFile, toBlob(cssSnippets));
+
+  if (starting) {
+    console.log(`Style Takeout: Moved ${total} CSS snippets to '${outFile}'`);
+    starting = false;
+  } else {
+    console.log(`Style Takeout: Updated ${updates} of ${total} snippets`);
+  }
 };
 
 export default createMacro(styleTakeoutMacro);
