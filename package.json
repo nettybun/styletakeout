@@ -1,8 +1,8 @@
 {
-  "name": "style-takeout.macro",
+  "name": "styletakeout.macro",
   "version": "1.0.0",
   "description": "Take CSS out of JS",
-  "main": "dist/style-takeout.macro.js",
+  "main": "dist/styletakeout.macro.js",
   "types": "index.d.ts",
   "keywords": [
     "css",
@@ -12,7 +12,7 @@
   "author": "Gen Hames",
   "license": "MIT",
   "scripts": {
-    "build": "babel style-takeout.macro.ts --out-dir dist --extensions .ts"
+    "build": "babel styletakeout.macro.ts --out-dir dist --extensions .ts"
   },
   "dependencies": {
     "babel-plugin-macros": "^2.8.0",

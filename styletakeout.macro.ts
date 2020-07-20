@@ -67,7 +67,7 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   return `${path.basename(filename)}:${line}:${column}`;
 };
 
-const styleTakeoutMacro: MacroHandler = ({ references, state }) => {
+const styletakeoutMacro: MacroHandler = ({ references, state }) => {
   const { injectGlobal, css } = references;
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {
@@ -117,11 +117,13 @@ const writeStyles = () => {
   fs.appendFileSync(outFile, toBlob(cssSnippets));
 
   if (starting) {
-    console.log(`Style Takeout: Moved ${total} CSS snippets to '${outFile}'`);
+    console.log(`Moved ${total} CSS snippets to '${outFile}' with styletakeout.macro`);
     starting = false;
   } else {
-    console.log(`Style Takeout: Updated ${updates} of ${total} CSS snippets`);
+    console.log(`Updated ${updates} of ${total} CSS snippets`);
   }
 };
 
-export default createMacro(styleTakeoutMacro);
+export default createMacro(styletakeoutMacro, {
+  configName: 'styletakeout',
+});
