@@ -10,17 +10,43 @@ import path from 'path';
 import type { PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
-/** CSS classes start with this: i.e `css-index.tsx:32:16` */
-const classPrefix = 'css-';
-const outFile = 'serve/takeout.css';
-// They didn't export their `Options` object 🙄
-const beautifyOptions: Parameters<typeof cssBeautify>[1] = {
-  indent: '  ',
-  openbrace: 'end-of-line',
-  autosemicolon: true,
+type ConfigOptions = {
+  /** Prefix for all CSS classes: i.e `css-` will yield `css-index.tsx:32:16` */
+  classPrefix: string,
+  /** Relative path to output file. Defaults to `./build/takeout.css` */
+  outputFile: string,
+  // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
+  /** Options for `cssbeautify` package or `false` to skip formatting */
+  beautify: Parameters<typeof cssBeautify>[1],
+  /** Log to the console */
+  quiet: boolean,
+  /** Support update-on-save by patching `process.stdout.write()` to know when Babel has compiled */
+  patchWatchStdOut: boolean,
+  /** String to look for with `indexOf()`. Defaults to @babel/cli's "Sucessfully compiled ..." */
+  patchWatchStdOutString: string,
+}
+
+declare module 'babel-plugin-macros' {
+  interface MacroParams {
+    config: Partial<ConfigOptions>
+  }
+}
+
+// Default config and then becomes resolved config at runtime
+const opts: ConfigOptions = {
+  classPrefix: 'css-',
+  outputFile: 'build/takeout.css',
+  beautify: {
+    indent: '  ',
+    openbrace: 'end-of-line',
+    autosemicolon: true,
+  },
+  quiet: false,
+  patchWatchStdOut: true,
+  patchWatchStdOutString: 'Successfully compiled',
 };
 
-let snippetIterUpdates = 0;
+let snippetUpdatesThisIteration = 0;
 const injectGlobalSnippets = new Map<string, string>();
 const cssSnippets = new Map<string, string>();
 
@@ -32,13 +58,17 @@ process.on('exit', () => !runningBabelCLI && writeStyles());
 
 // Can't `process.stdout.on('data', ...` because it's a Writeable stream
 const stdoutWrite = process.stdout.write;
-// @ts-ignore Typescript's never heard of wrapping overloaded functions before
+// @ts-ignore Typescript can't wrap overloaded functions
 process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
-  const [bufferString] = args;
-  const string = bufferString.toString();
-  if (string && string.startsWith('Successfully compiled')) {
-    runningBabelCLI = true;
-    writeStyles();
+  if (opts.patchWatchStdOut) {
+    const [bufferString] = args;
+    const string = bufferString.toString();
+    if (string && string.startsWith(opts.patchWatchStdOutString)) {
+      runningBabelCLI = true;
+      // If this was `writeStyles()` and it threw an error, the stdout pipe
+      // would be left broken so nothing would write; not even the error
+      process.nextTick(writeStyles);
+    }
   }
   return stdoutWrite.apply(process.stdout, args);
 };
@@ -67,7 +97,10 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   return `${path.basename(filename)}:${line}:${column}`;
 };
 
-const styletakeoutMacro: MacroHandler = ({ references, state }) => {
+const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
+  Object.assign(opts, config);
+  Object.assign(opts.beautify, config.beautify || {});
+
   const { injectGlobal, css } = references;
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {
@@ -76,10 +109,12 @@ const styletakeoutMacro: MacroHandler = ({ references, state }) => {
     const loc = sourceLocation(node, state);
     const styles = mergeTemplateExpression(node);
     const stylesCompiled = serialize(compile(styles), stringify);
-    const stylesPretty = cssBeautify(stylesCompiled, beautifyOptions);
+    const stylesPretty = opts.beautify === false
+      ? stylesCompiled
+      : cssBeautify(stylesCompiled, opts.beautify);
 
     injectGlobalSnippets.set(loc, `/* ${loc} */\n${stylesPretty}`);
-    snippetIterUpdates++;
+    snippetUpdatesThisIteration++;
     parentPath.remove();
   });
 
@@ -89,13 +124,15 @@ const styletakeoutMacro: MacroHandler = ({ references, state }) => {
     const loc = sourceLocation(node, state);
     const styles = mergeTemplateExpression(node);
 
-    const tag = `${classPrefix}${loc}`;
+    const tag = `${opts.classPrefix}${loc}`;
     const tagSafe = tag.replace(/([.:])/g, (_, match) => `\\${match}`);
     const stylesCompiled = serialize(compile(`.${tagSafe} { ${styles} }`), stringify);
-    const stylesPretty = cssBeautify(stylesCompiled, beautifyOptions);
+    const stylesPretty = opts.beautify === false
+      ? stylesCompiled
+      : cssBeautify(stylesCompiled, opts.beautify);
 
     cssSnippets.set(loc, stylesPretty);
-    snippetIterUpdates++;
+    snippetUpdatesThisIteration++;
     parentPath.replaceWith(t.stringLiteral(tag));
   });
 };
@@ -109,21 +146,21 @@ const toBlob = (x: Map<string, string>) => {
 
 let starting = true;
 const writeStyles = () => {
-  const updates = snippetIterUpdates;
+  const updates = snippetUpdatesThisIteration;
   const total = injectGlobalSnippets.size + cssSnippets.size;
-  snippetIterUpdates = 0;
+  snippetUpdatesThisIteration = 0;
 
-  fs.writeFileSync(outFile, toBlob(injectGlobalSnippets));
-  fs.appendFileSync(outFile, toBlob(cssSnippets));
+  fs.writeFileSync(opts.outputFile, toBlob(injectGlobalSnippets));
+  fs.appendFileSync(opts.outputFile, toBlob(cssSnippets));
+
+  if (opts.quiet) return;
 
   if (starting) {
-    console.log(`Moved ${total} CSS snippets to '${outFile}' with styletakeout.macro`);
+    console.log(`Moved ${total} CSS snippets to '${opts.outputFile}' with styletakeout.macro`);
     starting = false;
   } else {
     console.log(`Updated ${updates} of ${total} CSS snippets`);
   }
 };
 
-export default createMacro(styletakeoutMacro, {
-  configName: 'styletakeout',
-});
+export default createMacro(styletakeoutMacro, { configName: 'styletakeout' });
