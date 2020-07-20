@@ -21,10 +21,10 @@
     "stylis": "^4.0.2"
   },
   "devDependencies": {
-    "@babel/cli": "^7.10.4",
-    "@babel/core": "^7.10.4",
+    "@babel/cli": "^7.10.5",
+    "@babel/core": "^7.10.5",
     "@babel/plugin-transform-modules-commonjs": "^7.10.4",
-    "@babel/plugin-transform-typescript": "^7.10.4",
+    "@babel/plugin-transform-typescript": "^7.10.5",
     "@types/babel-plugin-macros": "^2.8.2",
     "@types/common-tags": "^1.8.0",
     "@types/cssbeautify": "^0.3.1"
