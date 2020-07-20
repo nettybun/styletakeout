@@ -1,7 +1,7 @@
 {
   "name": "styletakeout.macro",
   "version": "1.0.0",
-  "description": "Take CSS out of JS",
+  "description": "Take CSS out of JS at compile time",
   "main": "dist/styletakeout.macro.js",
   "types": "index.d.ts",
   "keywords": [
