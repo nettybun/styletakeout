@@ -17,13 +17,13 @@ type ConfigOptions = {
   outputFile: string,
   // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
   /** Options for `cssbeautify` package or `false` to skip formatting */
-  beautify: Parameters<typeof cssBeautify>[1],
+  beautify: false | Parameters<typeof cssBeautify>[1],
   /** Log to the console */
   quiet: boolean,
   /** Support update-on-save by patching `process.stdout.write()` to know when Babel has compiled */
-  patchWatchStdOut: boolean,
+  stdoutPatch: boolean,
   /** String to look for with `indexOf()`. Defaults to @babel/cli's "Sucessfully compiled ..." */
-  patchWatchStdOutString: string,
+  stdoutSearchString: string,
 }
 
 declare module 'babel-plugin-macros' {
@@ -42,8 +42,8 @@ const opts: ConfigOptions = {
     autosemicolon: true,
   },
   quiet: false,
-  patchWatchStdOut: true,
-  patchWatchStdOutString: 'Successfully compiled',
+  stdoutPatch: true,
+  stdoutSearchString: 'Successfully compiled',
 };
 
 let snippetUpdatesThisIteration = 0;
@@ -60,10 +60,10 @@ process.on('exit', () => !runningBabelCLI && writeStyles());
 const stdoutWrite = process.stdout.write;
 // @ts-ignore Typescript can't wrap overloaded functions
 process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
-  if (opts.patchWatchStdOut) {
+  if (opts.stdoutPatch) {
     const [bufferString] = args;
     const string = bufferString.toString();
-    if (string && string.startsWith(opts.patchWatchStdOutString)) {
+    if (string && string.startsWith(opts.stdoutSearchString)) {
       runningBabelCLI = true;
       // If this was `writeStyles()` and it threw an error, the stdout pipe
       // would be left broken so nothing would write; not even the error
@@ -163,4 +163,5 @@ const writeStyles = () => {
   }
 };
 
+// export default createMacro(styletakeoutMacro);
 export default createMacro(styletakeoutMacro, { configName: 'styletakeout' });
