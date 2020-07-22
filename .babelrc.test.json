@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    [
+      "macros",
+      {
+        "styletakeout": {
+          "outputFile": "dist/takeout-test.css"
+          // "stdoutPatch": false
+          // "beautify": false
+        }
+      }
+    ]
+  ]
+}

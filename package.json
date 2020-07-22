@@ -12,13 +12,15 @@
   "author": "Gen Hames",
   "license": "MIT",
   "scripts": {
-    "build": "babel styletakeout.macro.ts --out-dir dist --extensions .ts"
+    "build": "babel styletakeout.macro.ts --out-dir dist --extensions .ts",
+    "test": "babel test.js --config-file ./.babelrc.test.json --out-dir dist"
   },
   "dependencies": {
     "babel-plugin-macros": "^2.8.0",
     "common-tags": "^1.8.0",
     "cssbeautify": "^0.3.1",
-    "stylis": "^4.0.2"
+    "stylis": "^4.0.2",
+    "styletakeout.macro": "file:."
   },
   "devDependencies": {
     "@babel/cli": "^7.10.5",
