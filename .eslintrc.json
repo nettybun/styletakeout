@@ -89,10 +89,7 @@
   },
   "extends": [
     "eslint:recommended",
-    "plugin:@typescript-eslint/eslint-recommended",
-    "plugin:import/errors",
-    "plugin:import/warnings",
-    "plugin:import/typescript"
+    "plugin:@typescript-eslint/eslint-recommended"
   ],
   "rules": {
     "block-spacing": "error",
@@ -120,15 +117,6 @@
         "SwitchCase": 1
       }
     ],
-    "import/extensions": [
-      "error",
-      "always",
-      {
-        "ignorePackages": true
-      }
-    ],
-    // Doesn't understand Typescript's resolver that allows .js for .ts/.tsx
-    "import/no-unresolved": "off",
     "key-spacing": [
       "error",
       {
