@@ -1,13 +1,12 @@
 import { createMacro } from 'babel-plugin-macros';
 import * as t from '@babel/types';
 import { stripIndent } from 'common-tags';
-// @ts-ignore PR is open to support types but nothing yet
 import { compile, serialize, stringify } from 'stylis';
 import cssBeautify from 'cssbeautify';
 import fs from 'fs';
 import path from 'path';
 
-import type { PluginPass } from '@babel/core';
+import type { NodePath, PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
 type ConfigOptions = {
@@ -27,6 +26,11 @@ type ConfigOptions = {
 }
 
 declare module 'babel-plugin-macros' {
+  interface References {
+    snip?: NodePath[]
+    injectGlobal?: NodePath[]
+    css?: NodePath[]
+  }
   interface MacroParams {
     config: Partial<ConfigOptions>
   }
@@ -46,9 +50,10 @@ const opts: ConfigOptions = {
   stdoutSearchString: 'Successfully compiled',
 };
 
-let snippetUpdatesThisIteration = 0;
-const injectGlobalSnippets = new Map<string, string>();
-const cssSnippets = new Map<string, string>();
+let updatesThisIteration = 0;
+const snipBlocks = new Map<string, string>();
+const injectGlobalBlocks = new Map<string, string>();
+const cssBlocks = new Map<string, string>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
 // for @babel/cli. If stdout never emits a sign of running in @babel/cli then
@@ -63,7 +68,7 @@ process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
   if (opts.stdoutPatch) {
     const [bufferString] = args;
     const string = bufferString.toString();
-    if (string && string.startsWith(opts.stdoutSearchString)) {
+    if (string.startsWith(opts.stdoutSearchString)) {
       runningBabelCLI = true;
       // If this was `writeStyles()` and it threw an error, the stdout pipe
       // would be left broken so nothing would write; not even the error
@@ -99,6 +104,7 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
 
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   Object.assign(opts, config);
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   Object.assign(opts.beautify, config.beautify || {});
 
   const { injectGlobal, css } = references;
@@ -113,8 +119,8 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
       ? stylesCompiled
       : cssBeautify(stylesCompiled, opts.beautify);
 
-    injectGlobalSnippets.set(loc, `/* ${loc} */\n${stylesPretty}`);
-    snippetUpdatesThisIteration++;
+    injectGlobalBlocks.set(loc, `/* ${loc} */\n${stylesPretty}`);
+    updatesThisIteration++;
     parentPath.remove();
   });
 
@@ -125,14 +131,14 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     const styles = mergeTemplateExpression(node);
 
     const tag = `${opts.classPrefix}${loc}`;
-    const tagSafe = tag.replace(/([.:])/g, (_, match) => `\\${match}`);
+    const tagSafe = tag.replace(/([.:])/g, (_, match: string) => `\\${match}`);
     const stylesCompiled = serialize(compile(`.${tagSafe} { ${styles} }`), stringify);
     const stylesPretty = opts.beautify === false
       ? stylesCompiled
       : cssBeautify(stylesCompiled, opts.beautify);
 
-    cssSnippets.set(loc, stylesPretty);
-    snippetUpdatesThisIteration++;
+    cssBlocks.set(loc, stylesPretty);
+    updatesThisIteration++;
     parentPath.replaceWith(t.stringLiteral(tag));
   });
 };
@@ -146,12 +152,12 @@ const toBlob = (x: Map<string, string>) => {
 
 let starting = true;
 const writeStyles = () => {
-  const updates = snippetUpdatesThisIteration;
-  const total = injectGlobalSnippets.size + cssSnippets.size;
-  snippetUpdatesThisIteration = 0;
+  const updates = updatesThisIteration;
+  const total = injectGlobalBlocks.size + cssBlocks.size;
+  updatesThisIteration = 0;
 
-  fs.writeFileSync(opts.outputFile, toBlob(injectGlobalSnippets));
-  fs.appendFileSync(opts.outputFile, toBlob(cssSnippets));
+  fs.writeFileSync(opts.outputFile, toBlob(injectGlobalBlocks));
+  fs.appendFileSync(opts.outputFile, toBlob(cssBlocks));
 
   if (opts.quiet) return;
 
