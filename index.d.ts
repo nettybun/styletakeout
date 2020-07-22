@@ -1,3 +1,4 @@
+export function snip(statics: TemplateStringsArray): string;
 export function css(statics: TemplateStringsArray, ...variables: string[]): string;
 export function injectGlobal(statics: TemplateStringsArray, ...variables: string[]): void;
 
