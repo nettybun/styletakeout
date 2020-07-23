@@ -10,8 +10,10 @@ import type { NodePath, PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
 type ConfigOptions = {
-  /** Prefix for all CSS classes: i.e `css-` will yield `css-index.tsx:32:16` */
+  /** Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16` */
   classPrefix: string,
+  /** If the file is `index`, use the folder name only */
+  classRemoveFolderIndex: boolean,
   /** Relative path to output file. Defaults to `./build/takeout.css` */
   outputFile: string,
   // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
@@ -39,6 +41,7 @@ declare module 'babel-plugin-macros' {
 // Default config and then becomes resolved config at runtime
 const opts: ConfigOptions = {
   classPrefix: 'css-',
+  classRemoveFolderIndex: true,
   outputFile: 'build/takeout.css',
   beautify: {
     indent: '  ',
@@ -52,8 +55,15 @@ const opts: ConfigOptions = {
 
 let updatesThisIteration = 0;
 const snipBlocks = new Map<string, string>();
-const injectGlobalBlocks = new Map<string, string>();
-const cssBlocks = new Map<string, string>();
+
+// File paths for classnames need to as short as possible but still unique,
+// which means collecting all full paths and then comparing on write/exit.
+type Block = {
+  css: string,
+  parentPath: NodePath
+}
+const injectGlobalBlocks = new Map<string, Block>();
+const cssBlocks = new Map<string, Block>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
 // for @babel/cli. If stdout never emits a sign of running in @babel/cli then
@@ -107,6 +117,8 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   }
   const { filename } = state;
   const { line, column } = node.loc.start;
+  // TODO: Do the thing
+  // if (classRemoveFolderIndex)
   return `${path.basename(filename)}:${line}:${column}`;
 };
 
@@ -147,9 +159,8 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
       ? stylesCompiled
       : cssBeautify(stylesCompiled, opts.beautify);
 
-    injectGlobalBlocks.set(loc, `/* ${loc} */\n${stylesPretty}`);
+    injectGlobalBlocks.set(loc, { css: stylesPretty, parentPath });
     updatesThisIteration++;
-    parentPath.remove();
   });
 
   if (css) css.forEach(referencePath => {
@@ -158,23 +169,35 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     const loc = sourceLocation(node, state);
     const styles = mergeTemplateExpression(node);
 
-    const tag = `${opts.classPrefix}${loc}`;
-    const tagSafe = tag.replace(/([.:])/g, (_, match: string) => `\\${match}`);
-    const stylesCompiled = serialize(compile(`.${tagSafe} { ${styles} }`), stringify);
+    const stylesCompiled = serialize(compile(`.LOC { ${styles} }`), stringify);
     const stylesPretty = opts.beautify === false
       ? stylesCompiled
       : cssBeautify(stylesCompiled, opts.beautify);
 
-    cssBlocks.set(loc, stylesPretty);
+    cssBlocks.set(loc, { css: stylesPretty, parentPath });
     updatesThisIteration++;
-    parentPath.replaceWith(t.stringLiteral(tag));
   });
 };
 
-const toBlob = (x: Map<string, string>) => {
+const serializeGlobalBlocks = (blocks: Map<string, Block>) => {
   let blob = '';
-  // eslint-disable-next-line prefer-template
-  for (const style of x.values()) blob += style + '\n';
+  for (const [loc, { css, parentPath }] of blocks.entries()) {
+    // eslint-disable-next-line prefer-template
+    blob += `/* ${loc} */\n` + css.replace(/}\n\n/g, '}\n') + '\n';
+    parentPath.remove();
+  }
+  return blob;
+};
+
+const serializerClassBlocks = (blocks: Map<string, Block>) => {
+  let blob = '';
+  for (const [loc, block] of blocks.entries()) {
+    const tag = `${opts.classPrefix}${loc}`;
+    const tagSafe = tag.replace(/([.:])/g, (_, match: string) => `\\${match}`);
+    // eslint-disable-next-line prefer-template
+    blob += block.css.replace('LOC', tagSafe) + '\n';
+    block.parentPath.replaceWith(t.stringLiteral(tag));
+  }
   return blob;
 };
 
@@ -184,8 +207,8 @@ const writeStyles = () => {
   const total = injectGlobalBlocks.size + cssBlocks.size;
   updatesThisIteration = 0;
 
-  fs.writeFileSync(opts.outputFile, toBlob(injectGlobalBlocks));
-  fs.appendFileSync(opts.outputFile, toBlob(cssBlocks));
+  fs.writeFileSync(opts.outputFile, serializeGlobalBlocks(injectGlobalBlocks));
+  fs.appendFileSync(opts.outputFile, serializerClassBlocks(cssBlocks));
 
   if (opts.quiet) return;
 
