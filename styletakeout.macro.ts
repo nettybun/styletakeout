@@ -88,10 +88,10 @@ const mergeTemplateExpression = (node: t.Node): string => {
     const exp = expressions[i];
 
     if (!t.isIdentifier(exp))
-      throw new Error('CSS can only reference "snip``" variables in ${} blocks.');
+      throw new Error('CSS can only reference snip`` variables in ${} blocks.');
 
     if (!snipBlocks.has(exp.name))
-      throw new Error(`\${${exp.name}} isn't defined.`);
+      throw new Error(`\${${exp.name}} is not a defined snip\`\` variable.`);
 
     string += quasis[i].value.raw;
     string += snipBlocks.get(exp.name) as string;
