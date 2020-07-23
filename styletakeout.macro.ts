@@ -79,14 +79,22 @@ process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
 };
 
 const mergeTemplateExpression = (node: t.Node): string => {
-  if (!t.isTaggedTemplateExpression(node)) {
-    throw new Error(`Macro must be used as a tagged template and not "${node.type}"`);
-  }
+  if (!t.isTaggedTemplateExpression(node))
+    throw new Error(`Macro can only be a tagged template. Found "${node.type}".`);
+
   let string = '';
   const { quasis, expressions } = node.quasi;
   for (let i = 0; i < expressions.length; i++) {
+    const exp = expressions[i];
+
+    if (!t.isIdentifier(exp))
+      throw new Error('CSS can only reference "snip``" variables in ${} blocks.');
+
+    if (!snipBlocks.has(exp.name))
+      throw new Error(`\${${exp.name}} isn't defined.`);
+
     string += quasis[i].value.raw;
-    string += expressions[i];
+    string += snipBlocks.get(exp.name) as string;
   }
   // There's always one more `quasis` than `expressions`
   string += quasis[quasis.length - 1].value.raw;
@@ -107,7 +115,27 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   Object.assign(opts.beautify, config.beautify || {});
 
-  const { injectGlobal, css } = references;
+  const { snip, injectGlobal, css } = references;
+
+  // Process snippets _first_ before they're used
+  if (snip) snip.forEach(referencePath => {
+    const { parentPath } = referencePath;
+    const { node } = parentPath;
+    if (!t.isVariableDeclarator(parentPath.parent)) {
+      throw new Error('Macro snip`` can only be in the form "const/let/var x = snip`...`".');
+    }
+    // This variable name won't be unique for the entire codebase so rename it
+    const parentId = parentPath.parent.id as t.Identifier;
+    const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
+    parentPath.scope.rename(parentId.name, id.name);
+
+    const snippet = mergeTemplateExpression(node);
+    snipBlocks.set(id.name, snippet);
+    updatesThisIteration++;
+
+    // Remove the entire VariableDeclarator
+    parentPath.parentPath.remove();
+  });
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {
     const { parentPath } = referencePath;
