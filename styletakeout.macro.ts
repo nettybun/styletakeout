@@ -62,14 +62,14 @@ const snipBlocks = new Map<string, string>();
 // would be good, but by then the AST has been serialized. Instead, conflicting
 // short paths must be made longer as the algorithm is running
 
-/** Map of shortest unique paths to the remaining path segments (dynamic) */
+/** Map of shortest unique path to the remaining path segments (dynamic) */
 const uniquePaths = new Map<string, string[]>();
 
 type InjectGlobalBlock = { pos: string, css: string }
 type CSSBlock = { pos: string, css: string, parentPath: NodePath }
-/** Map of `relPath` to Snippet[] */
+/** Map of shortest unique paths to Snippet[] */
 const injectGlobalBlocks = new Map<string, InjectGlobalBlock[]>();
-/** Map of `relPath` to Snippet[] */
+/** Map of shortest unique paths to Snippet[] */
 const cssBlocks = new Map<string, CSSBlock[]>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
@@ -148,9 +148,13 @@ const reconcileFilePaths = (state: PluginPass) => {
     const theirPathSplit = uniquePaths.get(ourPath) as string[];
     uniquePaths.delete(ourPath);
 
+    const injectGlobalBlocksToMove = injectGlobalBlocks.get(ourPath);
+    if (injectGlobalBlocksToMove) injectGlobalBlocks.delete(ourPath);
+    const cssBlocksToMove = cssBlocks.get(ourPath);
+    if (cssBlocksToMove) cssBlocks.delete(ourPath);
+
     // Load their css`` blocks for updating parentPaths
     let theirPath = ourPath;
-    const theirBlocks = cssBlocks.get(theirPath) as CSSBlock[];
     // Choose a new conflict-free path for both ours and theirs
     while (ourPath === theirPath) {
       if (ourPathSplit.length === 0 || theirPathSplit.length === 0) {
@@ -160,13 +164,18 @@ const reconcileFilePaths = (state: PluginPass) => {
       theirPath = path.join(theirPathSplit.pop() as string, theirPath);
     }
 
-    theirBlocks.forEach(block => {
+    if (cssBlocksToMove) cssBlocksToMove.forEach(block => {
       const newClassName = className(theirPath, block.pos);
       console.log('Update parentPath:', newClassName);
       block.parentPath.replaceWith(t.stringLiteral(newClassName));
     });
     console.log(`uniquePaths conflict resolved to ${theirPath}`);
     uniquePaths.set(theirPath, theirPathSplit);
+
+    if (injectGlobalBlocksToMove)
+      injectGlobalBlocks.set(theirPath, injectGlobalBlocksToMove);
+    if (cssBlocksToMove)
+      cssBlocks.set(theirPath, cssBlocksToMove);
   }
   console.log(`uniquePaths add ${ourPath}`);
   uniquePaths.set(ourPath, ourPathSplit);
