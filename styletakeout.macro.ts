@@ -166,8 +166,10 @@ const reconcileFilePaths = (state: PluginPass) => {
 
     if (cssBlocksToMove) cssBlocksToMove.forEach(block => {
       const newClassName = className(theirPath, block.pos);
-      console.log('Update parentPath:', newClassName);
+      console.log('Update parentPath to be', newClassName);
+      console.log(block.parentPath);
       block.parentPath.replaceWith(t.stringLiteral(newClassName));
+      console.log(block.parentPath);
     });
     console.log(`uniquePaths conflict resolved to ${theirPath}`);
     uniquePaths.set(theirPath, theirPathSplit);
