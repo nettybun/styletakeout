@@ -54,16 +54,23 @@ const opts: ConfigOptions = {
 };
 
 let updatesThisIteration = 0;
+/** Map variable name to its value */
 const snipBlocks = new Map<string, string>();
 
-// File paths for classnames need to as short as possible but still unique,
-// which means collecting all full paths and then comparing on write/exit.
-type Block = {
-  css: string,
-  parentPath: NodePath
-}
-const injectGlobalBlocks = new Map<string, Block>();
-const cssBlocks = new Map<string, Block>();
+// File paths for classnames need to as short as possible but still unique. It
+// may seem like collecting all full paths and then comparing on write/exit
+// would be good, but by then the AST has been serialized. Instead, conflicting
+// short paths must be made longer as the algorithm is running
+
+/** Map of shortest unique paths to the remaining path segments (dynamic) */
+const uniquePaths = new Map<string, string[]>();
+
+type InjectGlobalBlock = { pos: string, css: string }
+type CSSBlock = { pos: string, css: string, parentPath: NodePath }
+/** Map of `relPath` to Snippet[] */
+const injectGlobalBlocks = new Map<string, InjectGlobalBlock[]>();
+/** Map of `relPath` to Snippet[] */
+const cssBlocks = new Map<string, CSSBlock[]>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
 // for @babel/cli. If stdout never emits a sign of running in @babel/cli then
@@ -111,16 +118,63 @@ const mergeTemplateExpression = (node: t.Node): string => {
   return stripIndent(string);
 };
 
-const sourceLocation = (node: t.Node, state: PluginPass) => {
+const sourcePos = (node: t.Node) => {
   if (!node.loc) {
     throw new Error('Node didn\'t have location info as "node.loc"');
   }
-  const { filename } = state;
   const { line, column } = node.loc.start;
-  // TODO: Do the thing
-  // if (classRemoveFolderIndex)
-  return `${path.basename(filename)}:${line}:${column}`;
+  return `${line}:${column}`;
 };
+
+const reconcileFilePaths = (state: PluginPass) => {
+  // This is a bad name for a variable. It's the full absolute path
+  const { filename: absPath } = state;
+
+  // Relative from project root
+  const relPath = path.relative(__dirname, absPath);
+  console.log('Translated', absPath, 'to', relPath);
+  const ourPathSplit = relPath.split(path.sep);
+  console.log('Segment path:', ourPathSplit);
+  // Optionally remove 'index.js'
+  if (opts.classRemoveFolderIndex) {
+    const filename = ourPathSplit[ourPathSplit.length - 1];
+    if (filename.startsWith('index.')) ourPathSplit.pop();
+  }
+  let ourPath = ourPathSplit.pop() as string;
+  console.log(`uniquePaths trying to add ${ourPath}`);
+  // Is there a conflict?
+  if (uniquePaths.has(ourPath)) {
+    console.log(`uniquePath conflict for ${ourPath}`);
+    const theirPathSplit = uniquePaths.get(ourPath) as string[];
+    uniquePaths.delete(ourPath);
+
+    // Load their css`` blocks for updating parentPaths
+    let theirPath = ourPath;
+    const theirBlocks = cssBlocks.get(theirPath) as CSSBlock[];
+    // Choose a new conflict-free path for both ours and theirs
+    while (ourPath === theirPath) {
+      if (ourPathSplit.length === 0 || theirPathSplit.length === 0) {
+        throw new Error(`Unable to resolve conflict beyond "${ourPath}" and "${theirPath}"`);
+      }
+      ourPath = path.join(ourPathSplit.pop() as string, ourPath);
+      theirPath = path.join(theirPathSplit.pop() as string, theirPath);
+    }
+
+    theirBlocks.forEach(block => {
+      const newClassName = className(theirPath, block.pos);
+      console.log('Update parentPath:', newClassName);
+      block.parentPath.replaceWith(t.stringLiteral(newClassName));
+    });
+    console.log(`uniquePaths conflict resolved to ${theirPath}`);
+    uniquePaths.set(theirPath, theirPathSplit);
+  }
+  console.log(`uniquePaths add ${ourPath}`);
+  uniquePaths.set(ourPath, ourPathSplit);
+  return ourPath;
+};
+
+const className = (filePath: string, pos: string) =>
+  `${opts.classPrefix}${filePath}:${pos}`;
 
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   Object.assign(opts, config);
@@ -145,58 +199,78 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     snipBlocks.set(id.name, snippet);
     updatesThisIteration++;
 
+    // TODO: Actually only do this if there are no references after removing the
+    // css`` and injectglobal`` handling
+
     // Remove the entire VariableDeclarator
     parentPath.parentPath.remove();
   });
 
-  if (injectGlobal) injectGlobal.forEach(referencePath => {
-    const { parentPath } = referencePath;
-    const { node } = parentPath;
-    const loc = sourceLocation(node, state);
-    const styles = mergeTemplateExpression(node);
-    const stylesCompiled = serialize(compile(styles), stringify);
-    const stylesPretty = opts.beautify === false
-      ? stylesCompiled
-      : cssBeautify(stylesCompiled, opts.beautify);
+  // Update the map of shortest file paths only if doing work
+  if (!injectGlobal && !css) return;
+  const shortestFilePath = reconcileFilePaths(state);
 
-    injectGlobalBlocks.set(loc, { css: stylesPretty, parentPath });
-    updatesThisIteration++;
-  });
+  if (injectGlobal) {
+    let snippets = injectGlobalBlocks.get(shortestFilePath);
+    if (!snippets) {
+      injectGlobalBlocks.set(shortestFilePath, snippets = []);
+    }
+    injectGlobal.forEach(referencePath => {
+      const { parentPath } = referencePath;
+      const { node } = parentPath;
+      const pos = sourcePos(node);
+      const style = mergeTemplateExpression(node);
+      const styleCompiled = serialize(compile(style), stringify);
+      const stylePretty = opts.beautify === false
+        ? styleCompiled
+        : cssBeautify(styleCompiled, opts.beautify);
+      (snippets as InjectGlobalBlock[]).push({ pos, css: stylePretty });
+      updatesThisIteration++;
+      parentPath.remove();
+    });
+  }
 
-  if (css) css.forEach(referencePath => {
-    const { parentPath } = referencePath;
-    const { node } = parentPath;
-    const loc = sourceLocation(node, state);
-    const styles = mergeTemplateExpression(node);
-
-    const stylesCompiled = serialize(compile(`.LOC { ${styles} }`), stringify);
-    const stylesPretty = opts.beautify === false
-      ? stylesCompiled
-      : cssBeautify(stylesCompiled, opts.beautify);
-
-    cssBlocks.set(loc, { css: stylesPretty, parentPath });
-    updatesThisIteration++;
-  });
+  if (css) {
+    let snippets = cssBlocks.get(shortestFilePath);
+    if (!snippets) {
+      cssBlocks.set(shortestFilePath, snippets = []);
+    }
+    css.forEach(referencePath => {
+      const { parentPath } = referencePath;
+      const { node } = parentPath;
+      const pos = sourcePos(node);
+      const style = mergeTemplateExpression(node);
+      const styleCompiled = serialize(compile(`.LOC { ${style} }`), stringify);
+      const stylePretty = opts.beautify === false
+        ? styleCompiled
+        : cssBeautify(styleCompiled, opts.beautify);
+      (snippets as CSSBlock[]).push({ pos, css: stylePretty, parentPath });
+      updatesThisIteration++;
+      parentPath.replaceWith(t.stringLiteral(className(shortestFilePath, pos)));
+    });
+  }
 };
 
-const serializeGlobalBlocks = (blocks: Map<string, Block>) => {
+const serializeGlobalBlocks = (blocks: Map<string, InjectGlobalBlock[]>) => {
   let blob = '';
-  for (const [loc, { css, parentPath }] of blocks.entries()) {
-    // eslint-disable-next-line prefer-template
-    blob += `/* ${loc} */\n` + css.replace(/}\n\n/g, '}\n') + '\n';
-    parentPath.remove();
+  for (const [filePath, block] of blocks.entries()) {
+    for (const { pos, css } of block) {
+      // eslint-disable-next-line prefer-template
+      blob += `/* ${filePath}:${pos} */\n` + css + '\n';
+    }
   }
   return blob;
 };
 
-const serializerClassBlocks = (blocks: Map<string, Block>) => {
+const serializerClassBlocks = (blocks: Map<string, CSSBlock[]>) => {
   let blob = '';
-  for (const [loc, block] of blocks.entries()) {
-    const tag = `${opts.classPrefix}${loc}`;
-    const tagSafe = tag.replace(/([.:])/g, (_, match: string) => `\\${match}`);
-    // eslint-disable-next-line prefer-template
-    blob += block.css.replace('LOC', tagSafe) + '\n';
-    block.parentPath.replaceWith(t.stringLiteral(tag));
+  for (const [filePath, block] of blocks.entries()) {
+    for (const { pos, css } of block) {
+      const tag = className(filePath, pos);
+      const safe = tag.replace(/([.:/])/g, (_, match: string) => `\\${match}`);
+      // eslint-disable-next-line prefer-template
+      blob += css.replace(/LOC/g, safe) + '\n';
+    }
   }
   return blob;
 };
@@ -207,8 +281,14 @@ const writeStyles = () => {
   const total = injectGlobalBlocks.size + cssBlocks.size;
   updatesThisIteration = 0;
 
-  fs.writeFileSync(opts.outputFile, serializeGlobalBlocks(injectGlobalBlocks));
-  fs.appendFileSync(opts.outputFile, serializerClassBlocks(cssBlocks));
+  fs.writeFileSync(
+    opts.outputFile,
+    serializeGlobalBlocks(injectGlobalBlocks).replace(/}\n\n/g, '}\n')
+  );
+  fs.appendFileSync(
+    opts.outputFile,
+    serializerClassBlocks(cssBlocks).replace(/}\n\n/g, '}\n')
+  );
 
   if (opts.quiet) return;
 
