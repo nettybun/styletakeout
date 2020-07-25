@@ -5,9 +5,6 @@ Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 
 ## TODO
 
-- Implement +N filename counter and undo the shortest-filepath thing. Doesn't
-  work with how Babel runs.
-
 - Optimize cases that result in `${"css-cHelloMessage.tsx:18:28"}`
 
   I suppose this can be done _before_ the actual node/path replacement. If the
@@ -18,7 +15,53 @@ Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 
 ## Options
 
-TODO:
+Default values are shown:
+
+```ts
+const opts: ConfigOptions = {
+  // Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16`
+  classPrefix: 'css-',
+    // If the file is `index`, use the folder name only
+  classUseFolder: true,
+    // Relative path to output file. Defaults to `./build/takeout.css`
+  outputFile: 'build/takeout.css',
+  // Options for `cssbeautify` package or `false` to skip formatting
+  beautify: {
+    indent: '  ',
+    openbrace: 'end-of-line',
+    autosemicolon: true,
+  },
+  // Remove declarations (decl``) statements or convert them to strings
+  removeDecl: true,
+  // Log to the console
+  quiet: false,
+  // Log ms per file
+  timing: false,
+  // Support update-on-save by patching `process.stdout.write()` to know when Babel has compiled
+  stdoutPatch: true,
+  // String to look for with `indexOf()`. Defaults to @babel/cli's "Sucessfully compiled ..."
+  stdoutSearchString: 'Successfully compiled',
+};
+```
+
+You configure this in `.babelrc.json` like this:
+
+```json
+{
+  "plugins": [
+    [
+      "macros",
+      {
+        "styletakeout": {
+          "outputFile": "dist/takeout.css",
+          "removeDecl": false,
+          "beautify": false,
+        }
+      }
+    ]
+  ]
+}
+```
 
 ## Classnames
 
