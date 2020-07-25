@@ -1,13 +1,13 @@
-import { css, snip } from 'styletakeout.macro';
+import { css, decl } from 'styletakeout.macro';
 
-// snip`...` is great since TS enforces the type at write-time instead of
+// decl`...` is great since TS enforces the type at write-time instead of
 // waiting for compile-time. It'll even error on ${} that's not referencing
-// another snip.
+// another decl.
 
-let varHello = snip`lightblue`;
-const varPink = snip`pink ${varHello} pink`;
+let varHello = decl`lightblue`;
+const varPink = decl`pink ${varHello} pink`;
 
-const multiline = snip`
+const multiline = decl`
   margin-top: 5px;
 `;
 
