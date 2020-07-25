@@ -4,7 +4,8 @@
       "macros",
       {
         "styletakeout": {
-          "outputFile": "dist/takeout-test.css"
+          "outputFile": "dist/takeout-test.css",
+          "timing": true
           // "removeDecl": false
           // "stdoutPatch": false
           // "beautify": false

@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { performance } from 'perf_hooks';
 
-import type { NodePath, PluginPass } from '@babel/core';
+import type { NodePath } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
 type ConfigOptions = {
@@ -127,14 +127,10 @@ const mergeTemplateExpression = (node: t.Node): string => {
   return stripIndent(string);
 };
 
-const sourceLocation = (node: t.Node, state: PluginPass) => {
+const sourceLocation = (node: t.Node, relPath: string) => {
   if (!node.loc) {
     throw new Error('Node didn\'t have location info as "node.loc"');
   }
-  // This is a bad variable name; it's not the only the name...
-  const { filename: absPath } = state;
-  const relPath = path.relative(cwd, absPath);
-
   let name: string;
   const prevShortName = mapPathToShortN.get(relPath);
   if (prevShortName) {
@@ -168,6 +164,9 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   }
 
   const { decl, injectGlobal, css } = references;
+  // This is a bad variable name; it's not the only the name...
+  const { filename: absPath } = state;
+  const relPath = path.relative(cwd, absPath);
 
   // Process declarations _first_ before they're used
   if (decl) decl.forEach(referencePath => {
@@ -193,7 +192,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   if (injectGlobal) injectGlobal.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
-    const loc = sourceLocation(node, state);
+    const loc = sourceLocation(node, relPath);
     const style = mergeTemplateExpression(node);
     const styleCompiled = serialize(compile(style), stringify);
     const stylePretty = opts.beautify === false
@@ -208,7 +207,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   if (css) css.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
-    const loc = sourceLocation(node, state);
+    const loc = sourceLocation(node, relPath);
     const style = mergeTemplateExpression(node);
 
     const tag = `${opts.classPrefix}${loc}`;
@@ -225,7 +224,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
 
   const t1 = performance.now();
   time += t1 - t0;
-  if (opts.timing) console.log();
+  if (opts.timing) console.log('⏱ ', relPath, `${(t1 - t0).toFixed(1)}ms`);
 };
 
 let starting = true;
