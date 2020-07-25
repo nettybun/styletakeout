@@ -30,7 +30,7 @@ They're exported as `${prefix}${name}+${count}:${line}:${column}` where:
   and [option "classUseFolder"][1] is true, then it's the folder name.
 
 - **Count** is for conflict resolution as same-name files are encountered
-  throughout the project. It increments from 1. This is an alternative to
+  throughout the project. It increments from 0. This is an alternative to
   hashing, which _styled-components_ and friends often use.
 
   Note there was an attempt to use the shortest conflict-free file path but

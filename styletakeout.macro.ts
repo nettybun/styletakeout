@@ -141,7 +141,7 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
     }
     // Get next +N
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    const n = mapShortToN.get(name) || 1;
+    const n = mapShortToN.get(name) || 0;
     mapShortToN.set(name, n + 1);
     name += `+${n}`;
     mapPathToShortN.set(relPath, name);
