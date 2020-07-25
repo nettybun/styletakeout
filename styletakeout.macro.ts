@@ -5,6 +5,7 @@ import { compile, serialize, stringify } from 'stylis';
 import cssBeautify from 'cssbeautify';
 import fs from 'fs';
 import path from 'path';
+import { performance } from 'perf_hooks';
 
 import type { NodePath, PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
@@ -21,6 +22,8 @@ type ConfigOptions = {
   beautify: false | Parameters<typeof cssBeautify>[1],
   /** Log to the console */
   quiet: boolean,
+  /** Log ms per file */
+  timing: boolean,
   /** Support update-on-save by patching `process.stdout.write()` to know when Babel has compiled */
   stdoutPatch: boolean,
   /** String to look for with `indexOf()`. Defaults to @babel/cli's "Sucessfully compiled ..." */
@@ -150,10 +153,16 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
+/** In ms for performance.now() */
+let time = 0;
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
+  const t0 = performance.now();
+  if (!optsSet) {
   Object.assign(opts, config);
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   Object.assign(opts.beautify, config.beautify || {});
+    optsSet = true;
+  }
 
   const { snip, injectGlobal, css } = references;
 
@@ -209,17 +218,14 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     updatesThisIteration++;
     parentPath.replaceWith(t.stringLiteral(tag));
   });
-};
-
-const toBlob = (x: Map<string, string>) => {
-  let blob = '';
-  // eslint-disable-next-line prefer-template
-  for (const style of x.values()) blob += style + '\n';
-  return blob;
+  const t1 = performance.now();
+  time += t1 - t0;
+  if (opts.timing) console.log();
 };
 
 let starting = true;
 const writeStyles = () => {
+  const t0 = performance.now();
   const updates = updatesThisIteration;
   const total = injectGlobalBlocks.size + cssBlocks.size;
   updatesThisIteration = 0;
@@ -232,12 +238,14 @@ const writeStyles = () => {
   fs.writeFileSync(opts.outputFile, styles.replace(/}\n\n/g, '}\n'));
 
   if (opts.quiet) return;
+  const t1 = performance.now();
+  const ms = Math.round(time + (t1 - t0));
 
   if (starting) {
-    console.log(`Moved ${total} CSS snippets to '${opts.outputFile}' with styletakeout.macro`);
+    console.log(`Moved ${total} CSS snippets to '${opts.outputFile}' with styletakeout.macro (${ms}ms)`);
     starting = false;
   } else {
-    console.log(`Updated ${updates} of ${total} CSS snippets`);
+    console.log(`Updated ${updates} of ${total} CSS snippets (${ms}ms)`);
   }
 };
 
