@@ -20,6 +20,8 @@ type ConfigOptions = {
   // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
   /** Options for `cssbeautify` package or `false` to skip formatting */
   beautify: false | Parameters<typeof cssBeautify>[1],
+  /** Remove declarations (decl``) statements or convert them to strings */
+  removeDecl: boolean,
   /** Log to the console */
   quiet: boolean,
   /** Log ms per file */
@@ -33,7 +35,6 @@ type ConfigOptions = {
 declare module 'babel-plugin-macros' {
   interface References {
     decl?: NodePath[]
-    declEcho?: NodePath[]
     injectGlobal?: NodePath[]
     css?: NodePath[]
   }
@@ -52,6 +53,7 @@ const opts: ConfigOptions = {
     openbrace: 'end-of-line',
     autosemicolon: true,
   },
+  removeDecl: true,
   quiet: false,
   timing: false,
   stdoutPatch: true,
@@ -154,22 +156,6 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
-const handleDecl = (parentPath: NodePath) => {
-  const { node } = parentPath;
-  if (!t.isVariableDeclarator(parentPath.parent)) {
-    throw new Error('The decl* macros can only be in the form "const/let/var x = decl`...`".');
-  }
-  // This variable name won't be unique for the entire codebase so rename it
-  const parentId = parentPath.parent.id as t.Identifier;
-  const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
-  parentPath.scope.rename(parentId.name, id.name);
-
-  const snippet = mergeTemplateExpression(node);
-  declBlocks.set(id.name, snippet);
-  updatesThisIteration++;
-  return snippet;
-};
-
 /** In ms for performance.now() */
 let time = 0;
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
@@ -181,20 +167,27 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     optsSet = true;
   }
 
-  const { decl, declEcho, injectGlobal, css } = references;
+  const { decl, injectGlobal, css } = references;
 
   // Process declarations _first_ before they're used
   if (decl) decl.forEach(referencePath => {
     const { parentPath } = referencePath;
-    handleDecl(parentPath);
-    // Remove the entire VariableDeclarator
-    parentPath.parentPath.remove();
-  });
+    const { node } = parentPath;
+    if (!t.isVariableDeclarator(parentPath.parent)) {
+      throw new Error('Macro decl`` can only be in the form "const/let/var x = decl`...`".');
+    }
+    // This variable name won't be unique for the entire codebase so rename it
+    const parentId = parentPath.parent.id as t.Identifier;
+    const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
+    parentPath.scope.rename(parentId.name, id.name);
 
-  if (declEcho) declEcho.forEach(referencePath => {
-    const { parentPath } = referencePath;
-    const snippet = handleDecl(parentPath);
-    parentPath.replaceWith(t.stringLiteral(snippet));
+    const snippet = mergeTemplateExpression(node);
+    declBlocks.set(id.name, snippet);
+    updatesThisIteration++;
+    // Remove the entire VariableDeclaration
+    opts.removeDecl
+      ? parentPath.parentPath.remove()
+      : parentPath.replaceWith(t.stringLiteral(snippet));
   });
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {

@@ -1,10 +1,8 @@
 export enum SnipBrand { _ = '' }
 export type Snip = SnipBrand & string;
 
-/** Declare a variable (use const/let/var) that is removed during compilation */
+/** Declare a variable (use const/let/var) */
 export function decl(statics: TemplateStringsArray, ...variables: Snip[]): Snip;
-/** Declare a variable (use const/let/var) that is replaced with a string during compilation */
-export function declEcho(statics: TemplateStringsArray, ...variables: Snip[]): Snip;
 /** CSS is taken out; css`` statement is replaced with a string of a unique classname */
 export function css(statics: TemplateStringsArray, ...variables: Snip[]): string;
 /** CSS is taken out; injectGlobal`` statement is removed entirely */
