@@ -10,8 +10,10 @@ import type { NodePath, PluginPass } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
 type ConfigOptions = {
-  /** Prefix for all CSS classes: i.e `css-` will yield `css-index.tsx:32:16` */
+  /** Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16` */
   classPrefix: string,
+  /** If the file is `index`, use the folder name only */
+  classUseFolder: boolean,
   /** Relative path to output file. Defaults to `./build/takeout.css` */
   outputFile: string,
   // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
@@ -39,6 +41,7 @@ declare module 'babel-plugin-macros' {
 // Default config and then becomes resolved config at runtime
 const opts: ConfigOptions = {
   classPrefix: 'css-',
+  classUseFolder: true,
   outputFile: 'build/takeout.css',
   beautify: {
     indent: '  ',
@@ -46,13 +49,30 @@ const opts: ConfigOptions = {
     autosemicolon: true,
   },
   quiet: false,
+  timing: false,
   stdoutPatch: true,
   stdoutSearchString: 'Successfully compiled',
 };
+// The macro function is called per file, but only the config is passed during
+// its call... it's a waste of time to Object.assign _everytime_ so skip it.
+let optsSet = false;
 
 let updatesThisIteration = 0;
+/** Map variable name to its value */
 const snipBlocks = new Map<string, string>();
+
+// File paths for classnames. Need to know which are taken and account for
+// multiple passes of the same file when Babel is run as `--watch`
+
+const cwd = process.cwd();
+/** Map of full file paths to their shortname+N short form */
+const mapPathToShortN = new Map<string, string>();
+/** Map of shortname to current N counter; incremented each conflict */
+const mapShortToN = new Map<string, number>();
+
+/** Map of shortname+N to the CSS snippet */
 const injectGlobalBlocks = new Map<string, string>();
+/** Map of shortname+N to the CSS snippet */
 const cssBlocks = new Map<string, string>();
 
 // Need to know when Babel is done compilation. Patch process.stdout to search
@@ -105,9 +125,29 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   if (!node.loc) {
     throw new Error('Node didn\'t have location info as "node.loc"');
   }
-  const { filename } = state;
-  const { line, column } = node.loc.start;
-  return `${path.basename(filename)}:${line}:${column}`;
+  // This is a bad variable name; it's not the only the name...
+  const { filename: absPath } = state;
+  const relPath = path.relative(cwd, absPath);
+
+  let name: string;
+  const prevShortName = mapPathToShortN.get(relPath);
+  if (prevShortName) {
+    name = prevShortName;
+  } else {
+    name = path.basename(relPath);
+    // Optionally remove 'index.js'
+    if (name.startsWith('index.') && opts.classUseFolder) {
+      name = path.basename(relPath.substring(0, relPath.length - name.length));
+    }
+    // Get next +N
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+    const n = mapShortToN.get(name) || 1;
+    mapShortToN.set(name, n + 1);
+    name += `+${n}`;
+    mapPathToShortN.set(relPath, name);
+  }
+  // This is a `loc` location: "shortname+N:L:C"
+  return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
@@ -141,13 +181,13 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     const loc = sourceLocation(node, state);
-    const styles = mergeTemplateExpression(node);
-    const stylesCompiled = serialize(compile(styles), stringify);
-    const stylesPretty = opts.beautify === false
-      ? stylesCompiled
-      : cssBeautify(stylesCompiled, opts.beautify);
+    const style = mergeTemplateExpression(node);
+    const styleCompiled = serialize(compile(style), stringify);
+    const stylePretty = opts.beautify === false
+      ? styleCompiled
+      : cssBeautify(styleCompiled, opts.beautify);
 
-    injectGlobalBlocks.set(loc, `/* ${loc} */\n${stylesPretty}`);
+    injectGlobalBlocks.set(loc, `/* ${loc} */\n${stylePretty}`);
     updatesThisIteration++;
     parentPath.remove();
   });
@@ -156,16 +196,16 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     const loc = sourceLocation(node, state);
-    const styles = mergeTemplateExpression(node);
+    const style = mergeTemplateExpression(node);
 
     const tag = `${opts.classPrefix}${loc}`;
-    const tagSafe = tag.replace(/([.:])/g, (_, match: string) => `\\${match}`);
-    const stylesCompiled = serialize(compile(`.${tagSafe} { ${styles} }`), stringify);
-    const stylesPretty = opts.beautify === false
-      ? stylesCompiled
-      : cssBeautify(stylesCompiled, opts.beautify);
+    const tagSafe = tag.replace(/([.:+])/g, (_, match: string) => `\\${match}`);
+    const styleCompiled = serialize(compile(`.${tagSafe} { ${style} }`), stringify);
+    const stylePretty = opts.beautify === false
+      ? styleCompiled
+      : cssBeautify(styleCompiled, opts.beautify);
 
-    cssBlocks.set(loc, stylesPretty);
+    cssBlocks.set(loc, stylePretty);
     updatesThisIteration++;
     parentPath.replaceWith(t.stringLiteral(tag));
   });
@@ -184,8 +224,12 @@ const writeStyles = () => {
   const total = injectGlobalBlocks.size + cssBlocks.size;
   updatesThisIteration = 0;
 
-  fs.writeFileSync(opts.outputFile, toBlob(injectGlobalBlocks));
-  fs.appendFileSync(opts.outputFile, toBlob(cssBlocks));
+  let styles = '';
+  // eslint-disable-next-line prefer-template
+  for (const style of injectGlobalBlocks.values()) styles += style + '\n';
+  // eslint-disable-next-line prefer-template
+  for (const style of cssBlocks.values()) styles += style + '\n';
+  fs.writeFileSync(opts.outputFile, styles.replace(/}\n\n/g, '}\n'));
 
   if (opts.quiet) return;
 
