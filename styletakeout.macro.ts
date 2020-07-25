@@ -32,7 +32,8 @@ type ConfigOptions = {
 
 declare module 'babel-plugin-macros' {
   interface References {
-    snip?: NodePath[]
+    decl?: NodePath[]
+    declEcho?: NodePath[]
     injectGlobal?: NodePath[]
     css?: NodePath[]
   }
@@ -62,7 +63,7 @@ let optsSet = false;
 
 let updatesThisIteration = 0;
 /** Map variable name to its value */
-const snipBlocks = new Map<string, string>();
+const declBlocks = new Map<string, string>();
 
 // File paths for classnames. Need to know which are taken and account for
 // multiple passes of the same file when Babel is run as `--watch`
@@ -111,13 +112,13 @@ const mergeTemplateExpression = (node: t.Node): string => {
     const exp = expressions[i];
 
     if (!t.isIdentifier(exp))
-      throw new Error('CSS can only reference snip`` variables in ${} blocks.');
+      throw new Error('CSS can only reference decl`` variables in ${} blocks.');
 
-    if (!snipBlocks.has(exp.name))
-      throw new Error(`\${${exp.name}} is not a defined snip\`\` variable.`);
+    if (!declBlocks.has(exp.name))
+      throw new Error(`\${${exp.name}} is not a defined decl\`\` variable.`);
 
     string += quasis[i].value.raw;
-    string += snipBlocks.get(exp.name) as string;
+    string += declBlocks.get(exp.name) as string;
   }
   // There's always one more `quasis` than `expressions`
   string += quasis[quasis.length - 1].value.raw;
@@ -153,37 +154,47 @@ const sourceLocation = (node: t.Node, state: PluginPass) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
+const handleDecl = (parentPath: NodePath) => {
+  const { node } = parentPath;
+  if (!t.isVariableDeclarator(parentPath.parent)) {
+    throw new Error('The decl* macros can only be in the form "const/let/var x = decl`...`".');
+  }
+  // This variable name won't be unique for the entire codebase so rename it
+  const parentId = parentPath.parent.id as t.Identifier;
+  const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
+  parentPath.scope.rename(parentId.name, id.name);
+
+  const snippet = mergeTemplateExpression(node);
+  declBlocks.set(id.name, snippet);
+  updatesThisIteration++;
+  return snippet;
+};
+
 /** In ms for performance.now() */
 let time = 0;
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const t0 = performance.now();
   if (!optsSet) {
-  Object.assign(opts, config);
-  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-  Object.assign(opts.beautify, config.beautify || {});
+    Object.assign(opts, config);
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+    Object.assign(opts.beautify, config.beautify || {});
     optsSet = true;
   }
 
-  const { snip, injectGlobal, css } = references;
+  const { decl, declEcho, injectGlobal, css } = references;
 
-  // Process snippets _first_ before they're used
-  if (snip) snip.forEach(referencePath => {
+  // Process declarations _first_ before they're used
+  if (decl) decl.forEach(referencePath => {
     const { parentPath } = referencePath;
-    const { node } = parentPath;
-    if (!t.isVariableDeclarator(parentPath.parent)) {
-      throw new Error('Macro snip`` can only be in the form "const/let/var x = snip`...`".');
-    }
-    // This variable name won't be unique for the entire codebase so rename it
-    const parentId = parentPath.parent.id as t.Identifier;
-    const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
-    parentPath.scope.rename(parentId.name, id.name);
-
-    const snippet = mergeTemplateExpression(node);
-    snipBlocks.set(id.name, snippet);
-    updatesThisIteration++;
-
+    handleDecl(parentPath);
     // Remove the entire VariableDeclarator
     parentPath.parentPath.remove();
+  });
+
+  if (declEcho) declEcho.forEach(referencePath => {
+    const { parentPath } = referencePath;
+    const snippet = handleDecl(parentPath);
+    parentPath.replaceWith(t.stringLiteral(snippet));
   });
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {
@@ -218,6 +229,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     updatesThisIteration++;
     parentPath.replaceWith(t.stringLiteral(tag));
   });
+
   const t1 = performance.now();
   time += t1 - t0;
   if (opts.timing) console.log();

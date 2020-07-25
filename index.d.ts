@@ -1,8 +1,13 @@
 export enum SnipBrand { _ = '' }
 export type Snip = SnipBrand & string;
 
-export function snip(statics: TemplateStringsArray, ...variables: Snip[]): Snip;
+/** Declare a variable (use const/let/var) that is removed during compilation */
+export function decl(statics: TemplateStringsArray, ...variables: Snip[]): Snip;
+/** Declare a variable (use const/let/var) that is replaced with a string during compilation */
+export function declEcho(statics: TemplateStringsArray, ...variables: Snip[]): Snip;
+/** CSS is taken out; css`` statement is replaced with a string of a unique classname */
 export function css(statics: TemplateStringsArray, ...variables: Snip[]): string;
+/** CSS is taken out; injectGlobal`` statement is removed entirely */
 export function injectGlobal(statics: TemplateStringsArray, ...variables: Snip[]): void;
 
 // Upstream doesn't use types. The above aren't even real functions...
