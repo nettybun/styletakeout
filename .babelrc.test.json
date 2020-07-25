@@ -5,6 +5,7 @@
       {
         "styletakeout": {
           "outputFile": "dist/takeout-test.css"
+          // "removeDecl": false
           // "stdoutPatch": false
           // "beautify": false
         }
