@@ -5,11 +5,11 @@ Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 
 ## TODO
 
-- Optimize cases that result in `${"css-cHelloMessage.tsx:18:28"}`
-
-  I suppose this can be done _before_ the actual node/path replacement. If the
-  parent is a template literal that has only one expression, then replace with
-  the `t.stringLiteral(tag)`...
+- Implementation for handling `` `classA ${css`...`} classB` `` into a string
+  instead of a template literal needs to handle any number of `${}` cases, not
+  only one. Will mean gathering all parentPaths that are template literals and
+  after the `forEach` merge any expressions that are only a string into the
+  quasi. If there are no expressions then downgrade the template to a string.
 
 - Pretty @babel/codeframe error
 

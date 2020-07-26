@@ -16,3 +16,7 @@ const styles = css`
   background-color: ${varPink};
   ${multiline}
 `;
+
+// These will get merged into a single string
+// Implementation needs improvement...
+const classname = `m5 p5 ${css`vertical-align: middle`} align-center`;

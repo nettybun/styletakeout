@@ -219,7 +219,23 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
 
     cssBlocks.set(loc, stylePretty);
     updatesThisIteration++;
-    parentPath.replaceWith(t.stringLiteral(tag));
+
+    const parentNextPath = parentPath.parentPath as NodePath<t.TemplateLiteral>;
+    // TODO: This could be improved by not using 'css' and instead comparing
+    // against the actual known css`` nodes
+    if (
+      t.isTemplateLiteral(parentNextPath.node)
+      && parentNextPath.node.expressions.length === 1
+      // && !parentNextPath.node.expressions.some(v => {
+      //   return t.isTaggedTemplateExpression(v, { name: 'css' });
+      // })
+    ) {
+      const { node } = parentNextPath;
+      const merged = node.quasis[0].value.raw + tag + node.quasis[1].value.raw;
+      parentNextPath.replaceWith(t.stringLiteral(merged));
+    } else {
+      parentPath.replaceWith(t.stringLiteral(tag));
+    }
   });
 
   const t1 = performance.now();
