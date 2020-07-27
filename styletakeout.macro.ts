@@ -270,6 +270,9 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   if (opts.timing) console.log('⏱ ', relPath, `${(t1 - t0).toFixed(1)}ms`);
 };
 
+// Lowkey pluralize
+const p = (s: string, n: number) => n === 1 ? s : `${s}s`;
+
 const writeStyles = () => {
   const t0 = performance.now();
   const updates = updateCount;
@@ -298,12 +301,19 @@ const writeStyles = () => {
   if (opts.quiet) return;
   const t1 = performance.now();
   const ms = Math.round(compileTime + (t1 - t0));
+  compileTime = 0;
 
   if (initialStyleWrite) {
-    console.log(`Moved ${total} CSS snippets to '${opts.outputFile}' with styletakeout.macro (${ms}ms)`);
+    console.log(`Moved ${total} CSS ${p('snippet', total)} from ${fileCount} ${
+      p('file', fileCount)} to '${opts.outputFile}' with styletakeout.macro (${ms}ms)`);
     initialStyleWrite = false;
   } else {
-    console.log(`Updated ${updates} of ${total} CSS snippets (${ms}ms)`);
+    if (fileCountNew > 0) {
+      console.log(`Tracking ${fileCountNew} new ${p('file', fileCountNew)} that have CSS snippets`);
+    }
+    if (updates) {
+      console.log(`Updated ${updates} of ${total} CSS ${p('snippet', total)} (${ms}ms)`);
+    }
   }
 };
 
