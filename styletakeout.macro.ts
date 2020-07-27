@@ -73,6 +73,7 @@ let activeFile: string;
 let runningBabelCLI = false;
 let updateCount = 0;
 let initialStyleWrite = true;
+let mapPathSize = 0;
 
 // Maps
 
@@ -281,6 +282,18 @@ const writeStyles = () => {
   // eslint-disable-next-line prefer-template
   for (const style of cssBlocks.values()) styles += style + '\n';
   fs.writeFileSync(opts.outputFile, styles.replace(/}\n\n/g, '}\n'));
+
+  // This map is append only so also increases in size during a `--watch`
+  const { size: fileCount } = mapPathToShortN;
+  const fileCountNew = fileCount - mapPathSize;
+  if (fileCountNew > 0) {
+    mapPathSize = fileCount;
+    const mapping = [];
+    for (const [path, shortN] of mapPathToShortN.entries()) {
+      mapping.push(`  "${shortN}": "${path}"`);
+    }
+    fs.writeFileSync(`${opts.outputFile}.json`, `{\n${mapping.join(',\n')}\n}`);
+  }
 
   if (opts.quiet) return;
   const t1 = performance.now();
