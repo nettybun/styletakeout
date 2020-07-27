@@ -59,23 +59,30 @@ const opts: ConfigOptions = {
   stdoutPatch: true,
   stdoutSearchString: 'Successfully compiled',
 };
-// The macro function is called per file, but only the config is passed during
-// its call... it's a waste of time to Object.assign _everytime_ so skip it.
+
+// Globals
+
+// Timer in ms for performance.now()
+let compileTime = 0;
+// Macro is called per file but it's a waste of time to Object.assign everytime
 let optsSet = false;
+// Active file path used for adding information to stack traces in theirError()
+let activeFile: string;
 
-let updatesThisIteration = 0;
-/** Map variable name to its value */
-const declBlocks = new Map<string, string>();
+// These only apply for multiple invocations such as with `babel --watch`
+let runningBabelCLI = false;
+let updateCount = 0;
+let initialStyleWrite = true;
 
-// File paths for classnames. Need to know which are taken and account for
-// multiple passes of the same file when Babel is run as `--watch`
+// Maps
 
-const cwd = process.cwd();
 /** Map of full file paths to their shortname+N short form */
 const mapPathToShortN = new Map<string, string>();
 /** Map of shortname to current N counter; incremented each conflict */
 const mapShortToN = new Map<string, number>();
 
+/** Map variable name to its value */
+const declBlocks = new Map<string, string>();
 /** Map of shortname+N to the CSS snippet */
 const injectGlobalBlocks = new Map<string, string>();
 /** Map of shortname+N to the CSS snippet */
@@ -84,7 +91,6 @@ const cssBlocks = new Map<string, string>();
 // Need to know when Babel is done compilation. Patch process.stdout to search
 // for @babel/cli. If stdout never emits a sign of running in @babel/cli then
 // process.exit will be used as a fallback; which is clearly after compilation.
-let runningBabelCLI = false;
 process.on('exit', () => !runningBabelCLI && writeStyles());
 
 // Can't `process.stdout.on('data', ...` because it's a Writeable stream
@@ -104,9 +110,18 @@ process.stdout.write = (...args: Parameters<typeof process.stdout.write>) => {
   return stdoutWrite.apply(process.stdout, args);
 };
 
+const theirError = (msg: string, loc?: t.SourceLocation | null) => {
+  if (loc) activeFile += `:${loc.start.line}:${loc.start.column}`;
+  const toModify = new Error(`${msg} (${activeFile})`);
+  // XXX: Even _reading_ `.stack` breaks upstream try/catch?
+  // toModify.stack = toModify.stack.split('\n').slice(0, 3).join('\n');
+  throw toModify;
+};
+
 const mergeTemplateExpression = (node: t.Node): string => {
   if (!t.isTaggedTemplateExpression(node))
-    throw new Error(`Macro can only be a tagged template. Found "${node.type}".`);
+    throw theirError(
+      `Macro can only be a tagged template. Found "${node.type}".`, node.loc);
 
   let string = '';
   const { quasis, expressions } = node.quasi;
@@ -114,10 +129,12 @@ const mergeTemplateExpression = (node: t.Node): string => {
     const exp = expressions[i];
 
     if (!t.isIdentifier(exp))
-      throw new Error('CSS can only reference decl`` variables in ${} blocks.');
+      throw theirError(
+        'CSS can only reference decl`` variables in ${} blocks.', exp.loc);
 
     if (!declBlocks.has(exp.name))
-      throw new Error(`\${${exp.name}} is not a defined decl\`\` variable.`);
+      throw theirError(
+        `\${${exp.name}} is not a defined decl\`\` variable.`, exp.loc);
 
     string += quasis[i].value.raw;
     string += declBlocks.get(exp.name) as string;
@@ -129,7 +146,7 @@ const mergeTemplateExpression = (node: t.Node): string => {
 
 const sourceLocation = (node: t.Node, relPath: string) => {
   if (!node.loc) {
-    throw new Error('Node didn\'t have location info as "node.loc"');
+    throw new Error('Babel node didn\'t have location info as "node.loc"');
   }
   let name: string;
   const prevShortName = mapPathToShortN.get(relPath);
@@ -152,8 +169,6 @@ const sourceLocation = (node: t.Node, relPath: string) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
-/** In ms for performance.now() */
-let time = 0;
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const t0 = performance.now();
   if (!optsSet) {
@@ -166,14 +181,17 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const { decl, injectGlobal, css } = references;
   // This is a bad variable name; it's not the only the name...
   const { filename: absPath } = state;
-  const relPath = path.relative(cwd, absPath);
+  // Set global for sourceError
+  activeFile = absPath;
+  const relPath = path.relative(process.cwd(), absPath);
 
   // Process declarations _first_ before they're used
   if (decl) decl.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     if (!t.isVariableDeclarator(parentPath.parent)) {
-      throw new Error('Macro decl`` can only be in the form "const/let/var x = decl`...`".');
+      throw theirError(
+        'Macro decl`` must use "const/let/var x = decl`...`".', node.loc);
     }
     // This variable name won't be unique for the entire codebase so rename it
     const parentId = parentPath.parent.id as t.Identifier;
@@ -182,7 +200,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
 
     const snippet = mergeTemplateExpression(node);
     declBlocks.set(id.name, snippet);
-    updatesThisIteration++;
+    updateCount++;
     // Remove the entire VariableDeclaration
     opts.removeDecl
       ? parentPath.parentPath.remove()
@@ -200,7 +218,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
       : cssBeautify(styleCompiled, opts.beautify);
 
     injectGlobalBlocks.set(loc, `/* ${loc} */\n${stylePretty}`);
-    updatesThisIteration++;
+    updateCount++;
     parentPath.remove();
   });
 
@@ -219,7 +237,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
       : cssBeautify(styleCompiled, opts.beautify);
 
     cssBlocks.set(loc, stylePretty);
-    updatesThisIteration++;
+    updateCount++;
 
     if (t.isTemplateLiteral(parentPath.parentPath.node)) {
       templateParentNodes.push(parentPath.parentPath as NodePath<t.TemplateLiteral>);
@@ -247,16 +265,15 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   });
 
   const t1 = performance.now();
-  time += t1 - t0;
+  compileTime += t1 - t0;
   if (opts.timing) console.log('⏱ ', relPath, `${(t1 - t0).toFixed(1)}ms`);
 };
 
-let starting = true;
 const writeStyles = () => {
   const t0 = performance.now();
-  const updates = updatesThisIteration;
+  const updates = updateCount;
   const total = injectGlobalBlocks.size + cssBlocks.size;
-  updatesThisIteration = 0;
+  updateCount = 0;
 
   let styles = '';
   // eslint-disable-next-line prefer-template
@@ -267,11 +284,11 @@ const writeStyles = () => {
 
   if (opts.quiet) return;
   const t1 = performance.now();
-  const ms = Math.round(time + (t1 - t0));
+  const ms = Math.round(compileTime + (t1 - t0));
 
-  if (starting) {
+  if (initialStyleWrite) {
     console.log(`Moved ${total} CSS snippets to '${opts.outputFile}' with styletakeout.macro (${ms}ms)`);
-    starting = false;
+    initialStyleWrite = false;
   } else {
     console.log(`Updated ${updates} of ${total} CSS snippets (${ms}ms)`);
   }

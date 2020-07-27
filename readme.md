@@ -3,10 +3,6 @@
 Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 `styled-components` and `csz` but at compile time instead of run time.
 
-## TODO
-
-- Pretty @babel/codeframe error
-
 ## Options
 
 Default values are shown:
