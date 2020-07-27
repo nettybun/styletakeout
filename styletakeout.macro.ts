@@ -204,6 +204,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     parentPath.remove();
   });
 
+  const templateParentNodes: NodePath<t.TemplateLiteral>[] = [];
   if (css) css.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
@@ -220,21 +221,28 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     cssBlocks.set(loc, stylePretty);
     updatesThisIteration++;
 
-    const parentNextPath = parentPath.parentPath as NodePath<t.TemplateLiteral>;
-    // TODO: This could be improved by not using 'css' and instead comparing
-    // against the actual known css`` nodes
-    if (
-      t.isTemplateLiteral(parentNextPath.node)
-      && parentNextPath.node.expressions.length === 1
-      // && !parentNextPath.node.expressions.some(v => {
-      //   return t.isTaggedTemplateExpression(v, { name: 'css' });
-      // })
-    ) {
-      const { node } = parentNextPath;
-      const merged = node.quasis[0].value.raw + tag + node.quasis[1].value.raw;
-      parentNextPath.replaceWith(t.stringLiteral(merged));
-    } else {
-      parentPath.replaceWith(t.stringLiteral(tag));
+    if (t.isTemplateLiteral(parentPath.parentPath.node)) {
+      templateParentNodes.push(parentPath.parentPath as NodePath<t.TemplateLiteral>);
+    }
+    parentPath.replaceWith(t.stringLiteral(tag));
+  });
+
+  if (templateParentNodes.length > 0) templateParentNodes.forEach(path => {
+    const { node } = path;
+    const { quasis, expressions } = node;
+    for (let i = 0; i < expressions.length;) {
+      if (t.isStringLiteral(expressions[i])) {
+        const { value } = expressions[i] as t.StringLiteral;
+        const merged = quasis[i].value.raw + value + quasis[i + 1].value.raw;
+        quasis[i + 1].value.raw = merged;
+        quasis.splice(i, 1);
+        expressions.splice(i, 1);
+      } else {
+        i++;
+      }
+    }
+    if (quasis.length === 0) {
+      path.replaceWith(t.stringLiteral(quasis[0].value.raw));
     }
   });
 

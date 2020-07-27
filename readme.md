@@ -5,12 +5,6 @@ Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 
 ## TODO
 
-- Implementation for handling `` `classA ${css`...`} classB` `` into a string
-  instead of a template literal needs to handle any number of `${}` cases, not
-  only one. Will mean gathering all parentPaths that are template literals and
-  after the `forEach` merge any expressions that are only a string into the
-  quasi. If there are no expressions then downgrade the template to a string.
-
 - Pretty @babel/codeframe error
 
 ## Options

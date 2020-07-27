@@ -17,6 +17,10 @@ const styles = css`
   ${multiline}
 `;
 
-// These will get merged into a single string
-// Implementation needs improvement...
-const classname = `m5 p5 ${css`vertical-align: middle`} align-center`;
+// These are simplified into strings as expected
+`m5 p5 ${css`vertical-align: middle`} align-center ${styles}`;
+`m5 p5 ${css`vertical-align: middle`} align-center`;
+`m5 p5 ${styles} ${css`vertical-align: middle`} align-center ${styles}`;
+`${styles} ${css`vertical-align: middle`}`;
+`${css`vertical-align: middle`}`;
+`${css`vertical-align: middle`} hello`;
