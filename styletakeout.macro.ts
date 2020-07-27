@@ -294,5 +294,4 @@ const writeStyles = () => {
   }
 };
 
-// export default createMacro(styletakeoutMacro);
 export default createMacro(styletakeoutMacro, { configName: 'styletakeout' });
