@@ -128,17 +128,23 @@ const mergeTemplateExpression = (node: t.Node): string => {
   const { quasis, expressions } = node.quasi;
   for (let i = 0; i < expressions.length; i++) {
     const exp = expressions[i];
+    let variableName;
 
-    if (!t.isIdentifier(exp))
+    if (t.isIdentifier(exp))
+      variableName = exp.name;
+    if (t.isMemberExpression(exp) && t.isIdentifier(exp.property))
+      variableName = exp.property.name;
+
+    if (typeof variableName === 'undefined')
       throw theirError(
         'CSS can only reference decl`` variables in ${} blocks.', exp.loc);
 
-    if (!declBlocks.has(exp.name))
+    if (!declBlocks.has(variableName))
       throw theirError(
-        `\${${exp.name}} is not a defined decl\`\` variable.`, exp.loc);
+        `\${${variableName}} is not a defined decl\`\` variable.`, exp.loc);
 
     string += quasis[i].value.raw;
-    string += declBlocks.get(exp.name) as string;
+    string += declBlocks.get(variableName) as string;
   }
   // There's always one more `quasis` than `expressions`
   string += quasis[quasis.length - 1].value.raw;
@@ -187,25 +193,44 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const relPath = path.relative(process.cwd(), absPath);
 
   // Process declarations _first_ before they're used
+  const isId = t.isIdentifier;
   if (decl) decl.forEach(referencePath => {
     const { parentPath } = referencePath;
-    const { node } = parentPath;
-    if (!t.isVariableDeclarator(parentPath.parent)) {
+    const { node, parent } = parentPath;
+    let variableName;
+
+    // const/let/var x = decl``
+    if (t.isVariableDeclarator(parent) && isId(parent.id))
+      variableName = parent.id.name;
+
+    // const obj = { ... x: decl`` }
+    if (t.isObjectProperty(parent) && isId(parent.key))
+      variableName = parent.key.name;
+
+    if (t.isAssignmentExpression(parent)) {
+      // x = decl``
+      if (isId(parent.left))
+        variableName = parent.left.name;
+      // obj.x = decl``
+      if (t.isMemberExpression(parent.left) && isId(parent.left.property))
+        variableName = parent.left.property.name;
+    }
+    if (typeof variableName === 'undefined') {
       throw theirError(
-        'Macro decl`` must use "const/let/var x = decl`...`".', node.loc);
+        'Macro decl`` must be an assignment like "x = decl``" or "x: decl``".', node.loc);
     }
     // This variable name won't be unique for the entire codebase so rename it
-    const parentId = parentPath.parent.id as t.Identifier;
-    const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
-    parentPath.scope.rename(parentId.name, id.name);
+    // const parentId = parent.id as t.Identifier;
+    // const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
+    // parentPath.scope.rename(parentId.name, id.name);
 
     const snippet = mergeTemplateExpression(node);
-    declBlocks.set(id.name, snippet);
+    declBlocks.set(variableName, snippet);
     updateCount++;
-    // Remove the entire VariableDeclaration
-    opts.removeDecl
-      ? parentPath.parentPath.remove()
-      : parentPath.replaceWith(t.stringLiteral(snippet));
+    // TODO: This might not be practical...
+    // opts.removeDecl
+    //   ? parentPath.parentPath.remove()
+    //   : parentPath.replaceWith(t.stringLiteral(snippet));
   });
 
   if (injectGlobal) injectGlobal.forEach(referencePath => {
