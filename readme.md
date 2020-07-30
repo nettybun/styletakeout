@@ -3,6 +3,41 @@
 Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 `styled-components` and `csz` but at compile time instead of run time.
 
+_/src/components/Button.ts_:
+```ts
+const buttonStyles = css`
+  padding: 5px;
+  border-radius: 2px;
+  background-color: ${colors.blue500};
+  &:hover {
+    background-color: ${colors.blue600};
+  }
+`;
+const Button = ({ text }) => html`
+  <button class=${buttonStyles}>${text}</button>
+`;
+```
+
+Becomes:
+
+_/build/components/Button.ts_
+```ts
+const Button = ({ text }) => html`
+  <button class="css-Button.tsx+0:10:22">${text}</button>
+`;
+```
+_/build/takeout.css_
+```css
+.css-Button\.tsx\+0\:10\:22 {
+  padding: 5px;
+  border-radius: 2px;
+  background-color: #4299e1;
+}
+.css-Button\.tsx\+0\:10\:22:hover {
+  background-color: #3182ce;
+}
+```
+
 ## Options
 
 Default values are shown:
