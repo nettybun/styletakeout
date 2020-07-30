@@ -17,6 +17,16 @@ declare module 'styletakeout.macro' {
 // TODO:?
 // decl.colors.blue500`...`;
 
+// Might be easier to just have decl() as a function that accepts an object
+// decl({
+//   varHello: '...',
+//   colors: {
+//     blue500: '...',
+//   },
+// });
+// css`...${decl.varHello}` ?
+// Easier to type this in a module augmentation via `typeof yourObject`...
+
 decl.varHello`lightblue`;
 decl.varPink`pink ${decl.varHello} pink`;
 
