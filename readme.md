@@ -8,9 +8,9 @@ _/src/components/Button.ts_:
 const buttonStyles = css`
   padding: 5px;
   border-radius: 2px;
-  background-color: ${colors.blue500};
+  background-color: ${decl.colors.blue500};
   &:hover {
-    background-color: ${colors.blue600};
+    background-color: ${decl.colors.blue600};
   }
 `;
 const Button = ({ text }) => html`
