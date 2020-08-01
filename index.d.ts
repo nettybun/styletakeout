@@ -1,21 +1,22 @@
 export enum DeclBrand { _ = '' }
 export type Decl = DeclBrand & string;
 
-export type DeclFn = (statics: TemplateStringsArray, ...v: DeclFn[]) => Decl
-
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface DeclObject {}
+export interface KnownDecl {}
 
-// I tried Proxy but TS' implementation doesn't allow type convertion #20846
-// export interface DeclProxy extends ProxyHandler<DeclObject> { ... }
-
-// /** Declare a variable (use const/let/var) */
-// export function decl(statics: TemplateStringsArray, ...variables: Decl[]): Decl;
+// export interface DeclFn extends KnownDecl {
+//   (statics: TemplateStringsArray, ...v: Decl[]): Decl
+// }
+export interface DeclObject {
+  <K extends keyof KnownDecl>(state: (Pick<KnownDecl, K> | KnownDecl | null)): void;
+}
 export const decl: DeclObject;
+export const d: KnownDecl; // DeclFn;
+
 /** CSS is taken out; css`` statement is replaced with a string of a unique classname */
-export function css(statics: TemplateStringsArray, ...variables: DeclFn[]): string;
+export function css(statics: TemplateStringsArray, ...variables: Decl[]): string;
 /** CSS is taken out; injectGlobal`` statement is removed entirely */
-export function injectGlobal(statics: TemplateStringsArray, ...variables: DeclFn[]): void;
+export function injectGlobal(statics: TemplateStringsArray, ...variables: Decl[]): void;
 
 // Upstream doesn't use types. The above aren't even real functions...
 declare const macro: unknown;

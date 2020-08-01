@@ -1,18 +1,12 @@
-import { css, decl } from 'styletakeout.macro';
-import type { Decl, DeclFn } from 'styletakeout.macro';
+import { css, decl, d } from 'styletakeout.macro';
 
-type MyType = {
-  [key in
-    | 'varHello'
-    | 'varPink'
-    | 'multiline'
-  ]: DeclFn;
-}
-
-declare module 'styletakeout.macro' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
-  interface DeclObject extends MyType {}
-}
+// declare module 'styletakeout.macro' {
+//   interface KnownDecl {
+//     varHello: Decl;
+//     varPink: Decl;
+//     multiline: Decl;
+//   }
+// }
 
 // TODO:?
 // decl.colors.blue500`...`;
@@ -26,18 +20,23 @@ declare module 'styletakeout.macro' {
 // });
 // css`...${decl.varHello}` ?
 // Easier to type this in a module augmentation via `typeof yourObject`...
+type S = {};
+decl<S>({
+  multiline: '',
+});
+(d as S).multiline;
 
-decl.varHello`lightblue`;
-decl.varPink`pink ${decl.varHello} pink`;
+// decl.varHello`lightblue`;
+// decl.varPink`pink ${decl.varHello} pink`;
 
-decl.multiline`
-  margin-top: 5px;
-`;
+// decl.multiline`
+//   margin-top: 5px;
+// `;
 
 const styles = css`
   padding: 5px;
-  background-color: ${decl.varPink};
-  ${decl.multiline}
+  background-color: ${d.varPink};
+  ${d.multiline}
 `;
 
 // These are simplified into strings as expected
