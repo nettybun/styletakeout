@@ -3,15 +3,10 @@ export type Decl = DeclBrand & string;
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface KnownDecl {}
-
-// export interface DeclFn extends KnownDecl {
-//   (statics: TemplateStringsArray, ...v: Decl[]): Decl
-// }
-export interface DeclObject {
-  <K extends keyof KnownDecl>(state: (Pick<KnownDecl, K> | KnownDecl | null)): void;
-}
-export const decl: DeclObject;
-export const d: KnownDecl; // DeclFn;
+/** Variable store. Must be Decl type */
+export const decl: KnownDecl;
+/** Create a Decl string to pass type restrictions for css`` and injectGlobal`` */
+export function d(statics: TemplateStringsArray, ...v: Decl[]): Decl;
 
 /** CSS is taken out; css`` statement is replaced with a string of a unique classname */
 export function css(statics: TemplateStringsArray, ...variables: Decl[]): string;
