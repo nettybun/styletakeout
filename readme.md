@@ -46,8 +46,7 @@ The TODO list is back
   one file and have it update all styles in all files in `--watch` mode. It's
   hard to work with real JS variables since the AST is not real JS (there's no
   way to know the value, or catch overwrites), so it's best to have `decl`
-  not depend on its environment. Been reading React's index.d.ts to see how it
-  handles `setState({...})` which might feel natural to developers.
+  not depend on its environment.
 
 ## Options
 
