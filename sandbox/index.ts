@@ -5,10 +5,13 @@ import { otherStyles } from './imported.js';
 // forgot to define something, so it's only for intellisense
 declare module 'styletakeout.macro' {
   interface KnownDecl {
-    // No import for `Decl`~!
+    // No import needed for `Decl`~!
     hello?: Decl
     pink?: Decl
-    colors: {
+    // Yes this is wild but it works... In styletakout object aren't real.
+    // Everything is a long concatenated variable name. The use of objects in
+    // your code is entirely for organizational purposes.
+    colors: Decl & {
       blue400?: Decl
       blue500?: Decl
     }
@@ -16,6 +19,11 @@ declare module 'styletakeout.macro' {
   }
 }
 
+// Yes unfortunately (?) this is a "feature" of reading `=` from the AST
+// There's no concept of "objects". The "." can be basically converted to "-"
+// and thought of as one-long-variable-name
+decl.colors = d`...`;
+decl.colors.blue400 = d`...`;
 decl.colors.blue500 = d`...`;
 
 decl.hello = d`lightblue`;
