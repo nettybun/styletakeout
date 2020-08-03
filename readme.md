@@ -22,8 +22,9 @@ Becomes:
 
 _/build/components/Button.ts_
 ```ts
+const buttonStyles = "css-Button.tsx+0:10:22";
 const Button = ({ text }) => html`
-  <button class="css-Button.tsx+0:10:22">${text}</button>
+  <button class=${buttonStyles}>${text}</button>
 `;
 ```
 _/build/takeout.css_
@@ -66,8 +67,6 @@ const opts: ConfigOptions = {
     openbrace: 'end-of-line',
     autosemicolon: true,
   },
-  // Remove declarations (decl``) statements or convert them to strings
-  removeDecl: true,
   // Log to the console
   quiet: false,
   // Log ms per file
@@ -89,7 +88,6 @@ You configure this in `.babelrc.json` like this:
       {
         "styletakeout": {
           "outputFile": "dist/takeout.css",
-          "removeDecl": false,
           "beautify": false,
         }
       }
