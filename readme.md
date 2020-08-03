@@ -116,6 +116,89 @@ They're exported as `${prefix}${name}+${count}:${line}:${column}` where:
 
 ## Hiccups
 
+_This macro doesn't understand JavaScript (or TypeScript)._
+
+Probably why all CSS-in-JS libraries are at runtime. There is no runtime in this
+macro. That's the most important thing to remember. Any kind of clever language
+use beyond basic bare-bones assignment expressions aren't understood.
+
+### Macro export references
+
+As a macro, I'm literally given a list of AST references to my exports. These
+are processed and understood in isolation.
+
+Any kind of renaming or modification won't work:
+
+```ts
+import { css } from 'styletakeout.macro';
+const somethingElse = css;
+const classname = somethingElse`padding: 5rem`;
+```
+
+Doesn't work since the macro is pointed to the line about `css`, sees that it's
+not being used in the form `` css`...` `` and throws an error.
+
+### Variable declaration
+
+This is done with `decl` which looks like an object but isn't. Remember there's
+no understanding of JS here, so the use of an object is entirely for your own
+organizational purposes. Try thinking of `decl.colors.blue` as the one long
+variable name like `decl-colors-blue` because that's literally how it's handled.
+
+Project-wide, `decl` is global. They're not constants though - the last file to
+write wins, so please be careful.
+
+Because the macro is processed in isolation, it can only handle strings and
+template literals that reference other `decl` variables (read the next section
+on variable usage)
+
+The below doesn't work since `decl` has no idea what `color` is.
+
+```ts
+const color = "#ABCDEF"
+decl.colors.blue = colors
+```
+
+Similarly, any of these won't work:
+
+```ts
+decl.size = function() { ... } // Not a string
+decl.size.large = 20 // Not a string
+decl.size.medium = '20' + 'rem' // Not a string; this is an expression
+```
+
+### Variable usage
+
+As mentioned above, variables in the `decl` "object" are actually one long
+variable name, so consumers `css` and `injectGlobal` must reference them using
+their full "paths" as if it was one long variable name.
+
+The below won't work:
+
+```ts
+// Assuming you've set `decl.blue = #ABCDEF` elsewhere
+const blue = decl.blue
+css`
+  color: ${blue};
+`;
+```
+
+Remember that each macro is processed and understood in isolation.
+
+~~First, the `decl` macro sees `= decl.colors` has a left-hand-side equals sign
+and reads that to mean you want to export the value of `decl.blue` to a string
+You'll get `const blue = "#ABCDEF"`.~~
+
+Then `css` will run and see that the tag template expression `${blue}` is not in
+the form `${decl.[...]}` and throws an error. It _only_ knows how to lookup
+values in `decl` and is _not aware_ of the `const blue` line above it since it's
+processed in isolation.
+
+You can't use a `decl` anywhere outside of `css` and `injectGlobal` blocks. It
+will throw.
+
+### Removal of code
+
 You have to remember that this macro _removes_ the CSS source at compile time
 in-place. This can be weird, even for experienced developers. It may be tempting
 to write something like:
@@ -132,9 +215,11 @@ for (const [k, v] of Object.entries(textSizes)) {
 }
 ```
 
-To save some typing, right? **Absolutely won't work**. This might be why most
-CSS-in-JS are at runtime. Remember that the ``` css`` ``` function is replaced
-entirely with the classname. This is the result:
+Remember that the `css` macro is replaced entirely with the classname. No code
+is ever run. This is not executed in a JS runtime. The macro is not aware of the
+for loop it's in - it _only_ sees the exact `` css`...` `` line and replaces it.
+
+The result:
 
 ```ts
 for (const [k, v] of Object.entries(textSizes)) {
@@ -142,12 +227,40 @@ for (const [k, v] of Object.entries(textSizes)) {
 }
 ```
 
-When I have very repeatative styles like the above, or Tailwind-esque helper
-rules like `m4` and `pb-2`, I put them in a static CSS file. Keeps it simple.
-
 ## Appendix
 
 Explaining some quirks and design decisions:
+
+### Variables with `decl`
+
+Ugh. I really didn't like this. _They're not real JS variables at all_. It makes
+sense to support variables as there are good reasons to want them, but without
+running in a real JS runtime makes it hard to define what a variable is.
+
+Concepts like declaration, scope, import/export, nested objects, and updates all
+don't make sense anymore. In the first few iterations I designed `decl` for good
+autocomplete support by enforcing ``const/let/var x = decl`...` `` and then
+straight up _removing_ the variable declaration (!). This is an awful idea
+because it treats `decl` like a variable when it's really not... Imagine how
+people could easily export the variable and their editor would say it was fine.
+
+Hard pass.
+
+The current version of `decl` involves either:
+
+  - RHS assignment `decl.[...] = '...'`
+  - ~~LHS assignment `const yourVar = decl.[...]`~~ Doesn't work see below
+  - Use in `css` and `injectGlobal` blocks
+
+I wanted the ability to export a decl to a string to be used in JS code, but the
+same issues of `unique-paths` branch (see appendix' section on class names) came
+up where it's not possible to use Babel to modify already written JS files.
+Since decl is global, another file can change a variable value already in use
+and I'd need to update all the areas that use it. _It's not possible to update
+the JS source of already written files_. I can only touch the CSS output.
+
+This breaks the ability to export variables to into JS-land at all, so I removed
+it. If you have a better alternative let me know.
 
 ### Babel CLI and patching `process.stdout.write`
 
@@ -191,6 +304,6 @@ filename at a glance, which is more meaningful than a hash. The mapping of N to
 the full filepath is written alongside the CSS takeout for when you need to find
 the source.
 
-[1]: ##Options
-[2]: ##Appendix
+[1]: #Options
+[2]: #Appendix
 [3]: https://github.com/kentcdodds/babel-plugin-macros/issues/155

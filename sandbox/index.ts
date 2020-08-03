@@ -42,10 +42,6 @@ const styles = css`
   ${decl.sizes.sm}
 `;
 
-// These are examples of an export into real runtime JS as a string
-const realVariable = decl.pink;
-console.log(decl.hello);
-
 console.log(styles);
 console.log(otherStyles);
 
