@@ -245,7 +245,7 @@ The current version of `decl` involves either:
   - Use in `css` and `injectGlobal` blocks
 
 I wanted the ability to export a decl to a string to be used in JS code, but the
-same issues of `unique-paths` branch (see appendix' section on class names) came
+same issues of `unique-paths` branch (see appendix' section on classnames) came
 up where it's not possible to use Babel to modify already written JS files.
 Since decl is global, another file can change a variable value already in use
 and I'd need to update all the areas that use it. _It's not possible to update
@@ -268,9 +268,9 @@ stream write-only, but the function `process.stdout.write` can be replaced - so
 I wrapped it and look for _"Successfully compiled"_. You can change the string
 with ["stdoutSearchString"][1] or turn off the patch with ["stdoutPatch"][1].
 
-### Class names and shortest unique file path as an alternatives to hashes
+### Classnames and shortest unique file path as an alternatives to hashes
 
-I didn't want to use a hash or random number for the class name because in my
+I didn't want to use a hash or random number for the classname because in my
 experience they're meaningless at a glance - `.sc-JwXcy` doesn't tell me
 anything. The idea was to use the filename only, and if there was a collision,
 reconcile by adjusting each of the conflicting names to use their parent
