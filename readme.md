@@ -124,10 +124,12 @@ use beyond basic bare-bones assignment expressions aren't understood.
 
 ### Macro export references
 
-As a macro, I'm literally given a list of AST references to my exports. These
-are processed and understood in isolation.
+The macro is given a list of AST references to its exports. These are processed
+and understood in isolation.
 
-Any kind of renaming or modification won't work:
+Any kind of renaming or modification won't work. The below doesn't work since
+the macro only sees the line about `... = css` and then throws an error because
+it's not in the form `` css`...` ``:
 
 ```ts
 import { css } from 'styletakeout.macro';
@@ -135,18 +137,14 @@ const somethingElse = css;
 const classname = somethingElse`padding: 5rem`;
 ```
 
-Doesn't work since the macro is pointed to the line about `css`, sees that it's
-not being used in the form `` css`...` `` and throws an error.
-
 ### Variable declaration
 
-This is done with `decl` which looks like an object but isn't. Remember there's
+This is done with `decl`. It looks like an object but isn't. Remember there's
 no understanding of JS here, so the use of an object is entirely for your own
 organizational purposes. Try thinking of `decl.colors.blue` as the one long
 variable name like `decl-colors-blue` because that's literally how it's handled.
 
-Project-wide, `decl` is global. They're not constants though - the last file to
-write wins, so please be careful.
+Variables are global and mutable. The last file to write wins.
 
 Because the macro is processed in isolation, it can only handle strings and
 template literals that reference other `decl` variables (read the next section
@@ -156,7 +154,7 @@ The below doesn't work since `decl` has no idea what `color` is.
 
 ```ts
 const color = "#ABCDEF"
-decl.colors.blue = colors
+decl.colors.blue = color
 ```
 
 Similarly, any of these won't work:
@@ -170,8 +168,8 @@ decl.size.medium = '20' + 'rem' // Not a string; this is an expression
 ### Variable usage
 
 As mentioned above, variables in the `decl` "object" are actually one long
-variable name, so consumers `css` and `injectGlobal` must reference them using
-their full "paths" as if it was one long variable name.
+variable name, so `decl`, `css`, and `injectGlobal` must reference them using
+their full "paths" like `${decl.[...]}`.
 
 The below won't work:
 
