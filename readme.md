@@ -185,23 +185,18 @@ css`
 
 Remember that each macro is processed and understood in isolation.
 
-~~First, the `decl` macro sees `= decl.colors` has a left-hand-side equals sign
-and reads that to mean you want to export the value of `decl.blue` to a string
-You'll get `const blue = "#ABCDEF"`.~~
+The `decl` macro sees `= decl.colors` has a left-hand-side equals sign and
+throws. I wish I could give you `const blue = "#ABCDEF"` but Babel doesn't allow
+that, see appendix. You can't use a `decl` anywhere outside of `css` and
+`injectGlobal` blocks.
 
-Then `css` will run and see that the tag template expression `${blue}` is not in
-the form `${decl.[...]}` and throws an error. It _only_ knows how to lookup
-values in `decl` and is _not aware_ of the `const blue` line above it since it's
-processed in isolation.
+_If_ the `css` block could run (it won't because we've errored by now) it'd see
+that the tag template expression `${blue}` is not in the form `${decl.[...]}`
+and throw an error. It _only_ knows how to lookup values in `decl`.
 
-You can't use a `decl` anywhere outside of `css` and `injectGlobal` blocks. It
-will throw.
+### No code evaluation
 
-### Removal of code
-
-You have to remember that this macro _removes_ the CSS source at compile time
-in-place. This can be weird, even for experienced developers. It may be tempting
-to write something like:
+The macro is _removed_ at compile time in-place. This doesn't work:
 
 ```ts
 const textSizes = {
@@ -215,9 +210,9 @@ for (const [k, v] of Object.entries(textSizes)) {
 }
 ```
 
-Remember that the `css` macro is replaced entirely with the classname. No code
-is ever run. This is not executed in a JS runtime. The macro is not aware of the
-for loop it's in - it _only_ sees the exact `` css`...` `` line and replaces it.
+The `css` macro is replaced entirely with the classname. No code is ever run.
+There's no JS runtime. The macro is not aware of the for-loop it's in - it
+_only_ sees the exact `` css`...` `` line and replaces it.
 
 The result:
 
@@ -249,7 +244,6 @@ Hard pass.
 The current version of `decl` involves either:
 
   - RHS assignment `decl.[...] = '...'`
-  - ~~LHS assignment `const yourVar = decl.[...]`~~ Doesn't work see below
   - Use in `css` and `injectGlobal` blocks
 
 I wanted the ability to export a decl to a string to be used in JS code, but the
@@ -276,9 +270,9 @@ stream write-only, but the function `process.stdout.write` can be replaced - so
 I wrapped it and look for _"Successfully compiled"_. You can change the string
 with ["stdoutSearchString"][1] or turn off the patch with ["stdoutPatch"][1].
 
-### Hash alternative: Shortest unique file path
+### Class names and shortest unique file path as an alternatives to hashes
 
-I didn't want to use a hash or random number for the classname because in my
+I didn't want to use a hash or random number for the class name because in my
 experience they're meaningless at a glance - `.sc-JwXcy` doesn't tell me
 anything. The idea was to use the filename only, and if there was a collision,
 reconcile by adjusting each of the conflicting names to use their parent
