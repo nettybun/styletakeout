@@ -1,38 +1,21 @@
-import { css, decl, d } from 'styletakeout.macro';
+import { decl, css } from 'styletakeout.macro';
 import { otherStyles } from './imported.js';
 
-// Up to you on whether you want to use `:?`. You'll get a compile error if you
-// forgot to define something, so it's only for intellisense
+// TypeScript is only for intellisense
+// TODO: Use the detailed config from stayknit
 declare module 'styletakeout.macro' {
-  interface KnownDecl {
-    // No import needed for `Decl`~!
-    hello?: Decl
-    pink?: Decl
-    // Yes this is wild but it works... In styletakout object aren't real.
-    // Everything is a long concatenated variable name. The use of objects in
-    // your code is entirely for organizational purposes.
-    colors: Decl & {
-      blue400?: Decl
-      blue500?: Decl
+  // Use the type that works for you. The real value is in the JSON config
+  type Hex = { _ : '' } & string
+  interface Decl {
+    content: ''
+    primaryPinkAccent: Hex
+    colors: {
+      blue400: Hex
+      blue500: Hex
     }
-    multiline?: Decl
+    multiline: ''
   }
 }
-
-// Yes unfortunately (?) this is a "feature" of reading `=` from the AST
-// There's no concept of "objects". The "." can be basically converted to "-"
-// and thought of as one-long-variable-name
-decl.colors = d`...`;
-decl.colors.blue400 = d`...`;
-decl.colors.blue500 = d`...`;
-
-decl.hello = d`lightblue`;
-decl.pink = d`pink ${decl.hello} pink`;
-decl.sizes.sm = d`1rem`;
-
-decl.multiline = d`
-  margin-top: 5px;
-`;
 
 const styles = css`
   padding: 5px;
