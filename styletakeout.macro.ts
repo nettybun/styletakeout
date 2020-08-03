@@ -185,7 +185,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     optsSet = true;
   }
 
-  const { decl, injectGlobal, css } = references;
+  const { decl = [], injectGlobal = [], css = [] } = references;
   // This is a bad variable name; it's not the only the name...
   const { filename: absPath } = state;
   // Set global for sourceError
@@ -194,7 +194,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
 
   // Process declarations _first_ before they're used
   const isId = t.isIdentifier;
-  if (decl) decl.forEach(referencePath => {
+  decl.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node, parent } = parentPath;
     let variableName;
@@ -233,7 +233,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     //   : parentPath.replaceWith(t.stringLiteral(snippet));
   });
 
-  if (injectGlobal) injectGlobal.forEach(referencePath => {
+  injectGlobal.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     const loc = sourceLocation(node, relPath);
@@ -249,7 +249,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   });
 
   const templateParentNodes: NodePath<t.TemplateLiteral>[] = [];
-  if (css) css.forEach(referencePath => {
+  css.forEach(referencePath => {
     const { parentPath } = referencePath;
     const { node } = parentPath;
     const loc = sourceLocation(node, relPath);
