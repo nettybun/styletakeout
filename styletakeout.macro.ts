@@ -10,10 +10,11 @@ import { performance } from 'perf_hooks';
 import type { NodePath } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
-type StringObject = { [key: string]: StringObject | string }
+type JSONValue = JSONObject | string | number | null
+type JSONObject = { [key: string]: JSONValue }
 type ConfigOptions = {
   /** Variables */
-  decl: StringObject,
+  decl: JSONObject,
   /** Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16` */
   classPrefix: string,
   /** If the file is `index`, use the folder name only */
@@ -164,6 +165,28 @@ const sourceLocation = (node: t.Node, relPath: string) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
+const traverseDecl = (objectPath: string[]) => {
+  let obj: JSONValue = opts.decl;
+  let traversedPath = 'decl';
+  for (const key of objectPath) {
+    if (typeof obj === 'object' && obj !== null) {
+      if (key in obj) {
+        obj = obj[key];
+      } else {
+        throw `Property "${key}" doesn't exist on ${traversedPath}`;
+      }
+    } else {
+      const type = obj === null ? 'null' : typeof obj;
+      throw `Trying to access "${key}" on ${type} at ${traversedPath}`;
+    }
+    traversedPath += `.${key}`;
+  }
+  if (obj !== null && typeof obj === 'object') {
+    throw `${traversedPath} is an object`;
+  }
+  return String(obj);
+};
+
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const t0 = performance.now();
   if (!macroCalled) {
@@ -181,10 +204,10 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const relPath = path.relative(process.cwd(), absPath);
 
   decl.forEach(referencePath => {
-    if (!t.isIdentifier(referencePath.node)) {
-      const { type, loc } = referencePath.node;
+    const refNode = referencePath.node;
+    if (!t.isIdentifier(refNode)) {
       throw theirError(
-        `Macro decl must be treated as an identifier. Was ${type}`, loc);
+        `Macro decl must be treated as an identifier. Was ${refNode.type}`, refNode.loc);
     }
     const objectPath: string[] = [];
     let parentPath = referencePath as NodePath<t.MemberExpression>;
@@ -197,15 +220,28 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
       }
       objectPath.push(node.property.name);
     }
-    console.log('Exit type', parentPath.type);
     if (objectPath.length === 0) {
       throw theirError(
-        'Must read decl as an object like "decl.a.b.c"', referencePath.node.loc);
+        'Must read decl as an object like "decl.a.b.c"', refNode.loc);
     }
-    console.log('Extracted', objectPath);
-    // TODO: Lookup the value. If the value is decl.[...] look that one up too.
-    // Stop after one lookup. Don't let them get too busy with it...
-    parentPath.replaceWith(t.stringLiteral(objectPath.join('-')));
+    let declValue: string;
+    try {
+      declValue = traverseDecl(objectPath);
+    } catch (err) {
+      throw theirError(err as string, refNode.loc);
+    }
+    // Only resolve aliases once (one level deep). Variables should be simple
+    if (declValue.startsWith('decl.')) {
+      try {
+        const objectPathAlias = declValue.split('.');
+        objectPathAlias.shift();
+        declValue = traverseDecl(objectPathAlias);
+      } catch (err) {
+        const og = `decl.${objectPath.join('.')}`;
+        throw theirError(`Error resolving alias at "${og}": ${err as string}`, refNode.loc);
+      }
+    }
+    parentPath.replaceWith(t.stringLiteral(declValue));
   });
 
   injectGlobal.forEach(referencePath => {

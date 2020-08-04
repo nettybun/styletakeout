@@ -8,25 +8,28 @@ declare module 'styletakeout.macro' {
   type Hex = { _ : '' } & string
   interface Decl {
     content: ''
-    primaryPinkAccent: Hex
-    colors: {
-      blue400: Hex
-      blue500: Hex
+    primaryPurpleAccent: Hex
+    color: {
+      blue: {
+        c400: Hex
+        c500: Hex
+      }
     }
     multiline: ''
   }
 }
 
-const exportedVariable = decl.colors;
+const exportedVariable = decl.color.blue.c400;
 const styles = css`
   padding: 5px;
-  background-color: ${decl.colors.blue500};
+  background-color: ${decl.color.blue.c500};
   ${decl.multiline}
   /* Note that .lg and .md error since TS can't ensure they're defined */
-  ${decl.sizes.sm}
+  ${decl.size.sm}
 `;
 
 console.log(styles);
+console.log(decl.primaryPurpleAccent);
 console.log(otherStyles);
 
 // These are simplified into strings as expected

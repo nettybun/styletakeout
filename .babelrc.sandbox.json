@@ -10,8 +10,9 @@
           // "stdoutPatch": false,
           // "beautify": false,
           "decl": {
-            "pageBackground": "decl.color.purple.c100",
-            "bodyBackground": "#eee",
+            "primaryPurpleAccent": "decl.color.purple.c100",
+            "multiline": "\n  content: 'Decl-Multiline';\n",
+            // These colours are from TailwindCSS
             "color": {
               "black": "#000",
               "white": "#fff",
@@ -127,24 +128,9 @@
               }
             },
             "size": {
-              "s00": "0",
-              "s01": "0.25re",
-              "s02": "0.5rem",
-              "s03": "0.75re",
-              "s04": "1rem",
-              "s05": "1.25re",
-              "s06": "1.5rem",
-              "s08": "2rem",
-              "s10": "2.5rem",
-              "s12": "3rem",
-              "s16": "4rem",
-              "s20": "5rem",
-              "s24": "6rem",
-              "s32": "8rem",
-              "s40": "10rem",
-              "s48": "12rem",
-              "s56": "14rem",
-              "s64": "16rem"
+              "sm": "2rem",
+              "md": "4rem",
+              "lg": "8rem"
             }
           }
         }

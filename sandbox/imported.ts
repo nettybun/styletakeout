@@ -6,7 +6,7 @@ declare module 'styletakeout.macro' {
   interface Decl {
     // Note that declaration merging isn't deep. If size was already defined, it
     // would be overwritten
-    sizes: {
+    size: {
       sm: Rem
       md: Rem
       lg: Rem
@@ -14,9 +14,9 @@ declare module 'styletakeout.macro' {
   }
 }
 
-const exportedVariable = decl.sizes.md;
+const exportedVariable = decl.size.md;
 const otherStyles = css`
-  padding: ${decl.sizes.lg};
+  padding: ${decl.size.lg};
 `;
 
 export { otherStyles };
