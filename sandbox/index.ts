@@ -17,6 +17,7 @@ declare module 'styletakeout.macro' {
   }
 }
 
+const exportedVariable = decl.colors;
 const styles = css`
   padding: 5px;
   background-color: ${decl.colors.blue500};

@@ -14,6 +14,7 @@ declare module 'styletakeout.macro' {
   }
 }
 
+const exportedVariable = decl.sizes.md;
 const otherStyles = css`
   padding: ${decl.sizes.lg};
 `;

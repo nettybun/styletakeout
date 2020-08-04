@@ -13,7 +13,7 @@
   "license": "MIT",
   "scripts": {
     "build": "babel styletakeout.macro.ts --out-dir dist --extensions .ts",
-    "sandbox": "babel sandbox.ts --config-file ./.babelrc.sandbox.json --out-dir dist --extensions .ts"
+    "sandbox": "babel sandbox --config-file ./.babelrc.sandbox.json --out-dir dist --extensions .ts"
   },
   "dependencies": {
     "babel-plugin-macros": "^2.8.0",

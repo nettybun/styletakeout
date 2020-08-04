@@ -10,7 +10,10 @@ import { performance } from 'perf_hooks';
 import type { NodePath } from '@babel/core';
 import type { MacroHandler } from 'babel-plugin-macros';
 
+type StringObject = { [key: string]: StringObject | string }
 type ConfigOptions = {
+  /** Variables */
+  decl: StringObject,
   /** Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16` */
   classPrefix: string,
   /** If the file is `index`, use the folder name only */
@@ -20,8 +23,6 @@ type ConfigOptions = {
   // PR DefinitelyTyped#46190 - @types/cssbeautify didn't export 🙄
   /** Options for `cssbeautify` package or `false` to skip formatting */
   beautify: false | Parameters<typeof cssBeautify>[1],
-  /** Remove declarations (decl``) statements or convert them to strings */
-  removeDecl: boolean,
   /** Log to the console */
   quiet: boolean,
   /** Log ms per file */
@@ -45,6 +46,7 @@ declare module 'babel-plugin-macros' {
 
 // Default config and then becomes resolved config at runtime
 const opts: ConfigOptions = {
+  decl: {},
   classPrefix: 'css-',
   classUseFolder: true,
   outputFile: 'build/takeout.css',
@@ -53,7 +55,6 @@ const opts: ConfigOptions = {
     openbrace: 'end-of-line',
     autosemicolon: true,
   },
-  removeDecl: true,
   quiet: false,
   timing: false,
   stdoutPatch: true,
@@ -64,8 +65,8 @@ const opts: ConfigOptions = {
 
 // Timer in ms for performance.now()
 let compileTime = 0;
-// Macro is called per file but it's a waste of time to Object.assign everytime
-let optsSet = false;
+// Macro is called per file but need to do setup work _once_ for the file tree
+let macroCalled = false;
 // Active file path used for adding information to stack traces in theirError()
 let activeFile: string;
 
@@ -82,8 +83,6 @@ const mapPathToShortN = new Map<string, string>();
 /** Map of shortname to current N counter; incremented each conflict */
 const mapShortToN = new Map<string, number>();
 
-/** Map variable name to its value */
-const declBlocks = new Map<string, string>();
 /** Map of shortname+N to the CSS snippet */
 const injectGlobalBlocks = new Map<string, string>();
 /** Map of shortname+N to the CSS snippet */
@@ -120,31 +119,20 @@ const theirError = (msg: string, loc?: t.SourceLocation | null) => {
 };
 
 const mergeTemplateExpression = (node: t.Node): string => {
-  if (!t.isTaggedTemplateExpression(node))
+  if (!t.isTaggedTemplateExpression(node)) {
     throw theirError(
       `Macro can only be a tagged template. Found "${node.type}".`, node.loc);
-
+  }
   let string = '';
   const { quasis, expressions } = node.quasi;
   for (let i = 0; i < expressions.length; i++) {
     const exp = expressions[i];
-    let variableName;
-
-    if (t.isIdentifier(exp))
-      variableName = exp.name;
-    if (t.isMemberExpression(exp) && t.isIdentifier(exp.property))
-      variableName = exp.property.name;
-
-    if (typeof variableName === 'undefined')
+    if (!t.isStringLiteral(exp)) {
       throw theirError(
-        'CSS can only reference decl`` variables in ${} blocks.', exp.loc);
-
-    if (!declBlocks.has(variableName))
-      throw theirError(
-        `\${${variableName}} is not a defined decl\`\` variable.`, exp.loc);
-
+        'CSS can only reference decl variables and strings in ${} expressions.', exp.loc);
+    }
     string += quasis[i].value.raw;
-    string += declBlocks.get(variableName) as string;
+    string += exp.value;
   }
   // There's always one more `quasis` than `expressions`
   string += quasis[quasis.length - 1].value.raw;
@@ -178,11 +166,11 @@ const sourceLocation = (node: t.Node, relPath: string) => {
 
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const t0 = performance.now();
-  if (!optsSet) {
+  if (!macroCalled) {
     Object.assign(opts, config);
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     Object.assign(opts.beautify, config.beautify || {});
-    optsSet = true;
+    macroCalled = true;
   }
 
   const { decl = [], injectGlobal = [], css = [] } = references;
@@ -192,45 +180,32 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   activeFile = absPath;
   const relPath = path.relative(process.cwd(), absPath);
 
-  // Process declarations _first_ before they're used
-  const isId = t.isIdentifier;
   decl.forEach(referencePath => {
-    const { parentPath } = referencePath;
-    const { node, parent } = parentPath;
-    let variableName;
-
-    // const/let/var x = decl``
-    if (t.isVariableDeclarator(parent) && isId(parent.id))
-      variableName = parent.id.name;
-
-    // const obj = { ... x: decl`` }
-    if (t.isObjectProperty(parent) && isId(parent.key))
-      variableName = parent.key.name;
-
-    if (t.isAssignmentExpression(parent)) {
-      // x = decl``
-      if (isId(parent.left))
-        variableName = parent.left.name;
-      // obj.x = decl``
-      if (t.isMemberExpression(parent.left) && isId(parent.left.property))
-        variableName = parent.left.property.name;
-    }
-    if (typeof variableName === 'undefined') {
+    if (!t.isIdentifier(referencePath.node)) {
+      const { type, loc } = referencePath.node;
       throw theirError(
-        'Macro decl`` must be an assignment like "x = decl``" or "x: decl``".', node.loc);
+        `Macro decl must be treated as an identifier. Was ${type}`, loc);
     }
-    // This variable name won't be unique for the entire codebase so rename it
-    // const parentId = parent.id as t.Identifier;
-    // const id = parentPath.scope.generateUidIdentifierBasedOnNode(parentId);
-    // parentPath.scope.rename(parentId.name, id.name);
-
-    const snippet = mergeTemplateExpression(node);
-    declBlocks.set(variableName, snippet);
-    updateCount++;
-    // TODO: This might not be practical...
-    // opts.removeDecl
-    //   ? parentPath.parentPath.remove()
-    //   : parentPath.replaceWith(t.stringLiteral(snippet));
+    const objectPath: string[] = [];
+    let parentPath = referencePath as NodePath<t.MemberExpression>;
+    while (t.isMemberExpression(parentPath.parentPath.node)) {
+      parentPath = parentPath.parentPath as NodePath<t.MemberExpression>;
+      const { node } = parentPath;
+      if (!t.isIdentifier(node.property)) {
+        throw theirError(
+          'Properties of decl must be treated as identifiers', node.loc);
+      }
+      objectPath.push(node.property.name);
+    }
+    console.log('Exit type', parentPath.type);
+    if (objectPath.length === 0) {
+      throw theirError(
+        'Must read decl as an object like "decl.a.b.c"', referencePath.node.loc);
+    }
+    console.log('Extracted', objectPath);
+    // TODO: Lookup the value. If the value is decl.[...] look that one up too.
+    // Stop after one lookup. Don't let them get too busy with it...
+    parentPath.replaceWith(t.stringLiteral(objectPath.join('-')));
   });
 
   injectGlobal.forEach(referencePath => {
