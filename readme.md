@@ -39,22 +39,14 @@ _/build/takeout.css_
 }
 ```
 
-## TODO:
-
-The TODO list is back
-
-- Variables need an overhaul. Specifically, to be able to change a variable in
-  one file and have it update all styles in all files in `--watch` mode. It's
-  hard to work with real JS variables since the AST is not real JS (there's no
-  way to know the value, or catch overwrites), so it's best to have `decl`
-  not depend on its environment.
-
 ## Options
 
 Default values are shown:
 
 ```ts
 const opts: ConfigOptions = {
+  // Variables of the form `decl.x.y.z`. Set in Babel config
+  decl: {},
   // Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16`
   classPrefix: 'css-',
     // If the file is `index`, use the folder name only
@@ -87,8 +79,17 @@ You configure this in `.babelrc.json` like this:
       "macros",
       {
         "styletakeout": {
+          // Variables support nesting and aliases
+          "decl": {
+            "pageBackground": "decl.color.black",
+            "bodyBackground": "#eee",
+            "color": {
+              "black": "#000",
+              "white": "#fff",
+            }
+          },
           "outputFile": "dist/takeout.css",
-          "beautify": false,
+          "beautify": false
         }
       }
     ]
@@ -134,45 +135,17 @@ import { css } from 'styletakeout.macro';
 const somethingElse = css;
 const classname = somethingElse`padding: 5rem`;
 ```
-
-### Variable declaration
-
-This is done with `decl`. It looks like an object but isn't. Remember there's
-no understanding of JS here, so the use of an object is entirely for your own
-organizational purposes. Try thinking of `decl.colors.blue` as the one long
-variable name like `decl-colors-blue` because that's literally how it's handled.
-
-Variables are global and mutable. The last file to write wins.
-
-Because the macro is processed in isolation, it can only handle strings and
-template literals that reference other `decl` variables (read the next section
-on variable usage)
-
-The below doesn't work since `decl` has no idea what `color` is.
-
-```ts
-const color = "#ABCDEF"
-decl.colors.blue = color
-```
-
-Similarly, any of these won't work:
-
-```ts
-decl.size = function() { ... } // Not a string
-decl.size.large = 20 // Not a string
-decl.size.medium = '20' + 'rem' // Not a string; this is an expression
-```
-
 ### Variable usage
 
-As mentioned above, variables in the `decl` "object" are actually one long
-variable name, so `decl`, `css`, and `injectGlobal` must reference them using
-their full "paths" like `${decl.[...]}`.
+The `decl` macro references variables you've defined as an object in your Babel
+config. _You must call from the root `decl` onward._ JS knows how to split
+object expressions, but this isn't JS - The macro only recognizes full paths
+like `${decl.[...]}`.
 
 The below won't work:
 
 ```ts
-// Assuming you've set `decl.blue = #ABCDEF` elsewhere
+// Assuming you've set `decl.blue` to #ABCDEF
 const blue = decl.blue
 css`
   color: ${blue};
@@ -181,14 +154,11 @@ css`
 
 Remember that each macro is processed and understood in isolation.
 
-The `decl` macro sees `= decl.colors` has a left-hand-side equals sign and
-throws. I wish I could give you `const blue = "#ABCDEF"` but Babel doesn't allow
-that, see appendix. You can't use a `decl` anywhere outside of `css` and
-`injectGlobal` blocks.
+1. The `decl` macro will change `decl.blue` to `"#ABCDEF"`.
 
-_If_ the `css` block could run (it won't because we've errored by now) it'd see
-that the tag template expression `${blue}` is not in the form `${decl.[...]}`
-and throw an error. It _only_ knows how to lookup values in `decl`.
+2. The `css` block will see that the tag template expression `${blue}` is not in
+   the form `${decl.[...]}` and throw an error. It _only_ knows how to lookup
+   values in `decl`.
 
 ### No code evaluation
 
@@ -224,33 +194,33 @@ Explaining some quirks and design decisions:
 
 ### Variables with `decl`
 
-Ugh. I really didn't like this. _They're not real JS variables at all_. It makes
-sense to support variables as there are good reasons to want them, but without
-running in a real JS runtime makes it hard to define what a variable is.
+Ugh. I really didn't like this. Variables are hard! It makes sense to support
+them but without running in a real JS runtime concepts like declaration, scope,
+import/export, nested objects, and updates all don't make sense anymore.
 
-Concepts like declaration, scope, import/export, nested objects, and updates all
-don't make sense anymore. In the first few iterations I designed `decl` for good
-autocomplete support by enforcing ``const/let/var x = decl`...` `` and then
-straight up _removing_ the variable declaration (!). This is an awful idea
-because it treats `decl` like a variable when it's really not... Imagine how
-people could easily export the variable and their editor would say it was fine.
+Variables were orignally set _in JS_ like ``const/let/var x = decl`...` `` where
+macro `decl` had to be a `TagTemplateExpression` (to enforce that `${...}` used
+only other `decl` statements). Then the entire variable declaration was straight
+up removed from the code (!). This is bad because it treats `decl` like a
+variable when it's really not... People can easily export the variable or mutate
+it and their editor will say it's fine.
 
-Hard pass.
+The next version didn't use `VariableDeclaration` to get the variable name.
+Instead you treat `decl` as an object and write to it like `decl.[...] = '...'`.
+This enters a huge mess. Now variables are global. In `--watch` (and not) the
+last write wins and must update all references in the project. However, as
+learned in appendix' section on classnames, it's not possible to use Babel to
+modify already written JS files - so I can't support exporting `decl` to a
+string to be used in JS code. I can only touch the CSS output. This is bad
+because I'm treating `decl` like a variable that can be set but not read unless
+it's in a `css` or `injectGlobal` block, and that changes update CSS but not JS.
 
-The current version of `decl` involves either:
+Also people will want to be able to export into JS-land. That's important.
 
-  - RHS assignment `decl.[...] = '...'`
-  - Use in `css` and `injectGlobal` blocks
-
-I wanted the ability to export a decl to a string to be used in JS code, but the
-same issues of `unique-paths` branch (see appendix' section on classnames) came
-up where it's not possible to use Babel to modify already written JS files.
-Since decl is global, another file can change a variable value already in use
-and I'd need to update all the areas that use it. _It's not possible to update
-the JS source of already written files_. I can only touch the CSS output.
-
-This breaks the ability to export variables to into JS-land at all, so I removed
-it. If you have a better alternative let me know.
+The last/current version sets variables in the Babel config as JSON. No
+assignment in JS! This also means it's intuitive that changes to variables will
+require a full reload (not just a `--watch` save). That's also great because it
+doesn't let people get too deep into variable tricks - it's JSON.
 
 ### Babel CLI and patching `process.stdout.write`
 
