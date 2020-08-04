@@ -2,7 +2,7 @@
   "name": "styletakeout.macro",
   "version": "1.0.0",
   "description": "Take CSS out of JS at compile time",
-  "main": "dist/styletakeout.macro.js",
+  "main": "styletakeout.macro.js",
   "types": "index.d.ts",
   "keywords": [
     "css",
@@ -12,8 +12,9 @@
   "author": "Gen Hames",
   "license": "MIT",
   "scripts": {
-    "build": "babel styletakeout.macro.ts --out-dir dist --extensions .ts",
-    "sandbox": "babel sandbox --config-file ./.babelrc.sandbox.json --out-dir dist --extensions .ts"
+    "build": "mkdir -p publish && cp *.ts package.json readme.md publish/ && npm run babel",
+    "babel": "babel styletakeout.macro.ts --out-dir publish --extensions .ts",
+    "sandbox": "babel sandbox --config-file ./.babelrc.sandbox.json --out-dir sandbox/build --extensions .ts"
   },
   "dependencies": {
     "babel-plugin-macros": "^2.8.0",
@@ -34,7 +35,7 @@
     "@typescript-eslint/eslint-plugin": "^3.8.0",
     "@typescript-eslint/parser": "^3.8.0",
     "eslint": "^7.6.0",
-    "styletakeout.macro": "file:.",
+    "styletakeout.macro": "file:publish",
     "typescript": "^3.9.7"
   }
 }

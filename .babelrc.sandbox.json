@@ -5,7 +5,7 @@
       "macros",
       {
         "styletakeout": {
-          "outputFile": "dist/takeout-test.css",
+          "outputFile": "sandbox/build/takeout-test.css",
           "timing": true,
           // "stdoutPatch": false,
           // "beautify": false,
