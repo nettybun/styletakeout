@@ -7,7 +7,6 @@ declare module 'styletakeout.macro' {
   // Use the type that works for you. The real value is in the JSON config
   type Hex = { _ : '' } & string
   interface Decl {
-    content: ''
     primaryPurpleAccent: Hex
     color: {
       blue: {
