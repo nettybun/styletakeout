@@ -5,6 +5,8 @@ Lets you pull CSS out of CSS-in-JS into an external CSS file. Similar to
 
 _/src/components/Button.ts_:
 ```ts
+import { decl, css } from 'styletakeout.macro';
+
 const buttonStyles = css`
   padding: 5px;
   border-radius: 2px;
@@ -39,6 +41,21 @@ _/build/takeout.css_
 }
 ```
 
+## API
+
+- `decl`: This object accesses variables defined in your Babel config
+- `` css`...` ``: CSS is placed in a class and moved to the output file. The
+  source code is replaced with a string of the classname.
+- `` injectGlobal`...` ``: Global CSS is directly moved to the output file
+  without a classname. The source code is removed entirely.
+
+The names for _css_ and _injectGlobal_ are used by other CSS-in-JS libraries
+like styled-components. This means editors like VSCode can provide syntax
+highlighting, linting, and autocomplete out of the box.
+
+All CSS is processed with Stylis and beautified with CSSBeautify. This can be
+configured below.
+
 ## Options
 
 Default values are shown:
@@ -70,7 +87,9 @@ const opts: ConfigOptions = {
 };
 ```
 
-You configure this in `.babelrc.json` like this:
+You configure this in `.babelrc.json`:
+
+Notice that variables support nesting and aliases.
 
 ```json
 {
@@ -79,7 +98,6 @@ You configure this in `.babelrc.json` like this:
       "macros",
       {
         "styletakeout": {
-          // Variables support nesting and aliases
           "decl": {
             "pageBackground": "decl.color.black",
             "bodyBackground": "#eee",
@@ -97,44 +115,77 @@ You configure this in `.babelrc.json` like this:
 }
 ```
 
+## TypeScript for `decl` variables
+
+In TypeScript you'll likely want autocomplete for the variables you've set. To
+support this, use module augmentation:
+
+```ts
+declare module 'styletakeout.macro' {
+  // Use the type that works for you. The real value is in the JSON config
+  type Hex = { _ : '' } & string
+  interface Decl {
+    primaryPurpleAccent: Hex
+    color: {
+      blue: {
+        c400: Hex
+        c500: Hex
+      }
+    }
+  }
+}
+```
+
+The above example is from _sandbox/index.ts_. Notice that the object values
+don't matter. You can use `string` but a branded type (as shown above) will
+provide a helpful tooltip in your editor to hint the type.
+
+[Here's a more complicated example using TailwindCSS colours][1].
+
 ## Classname structure
 
-They're exported as `${prefix}${name}+${count}:${line}:${column}` where:
+CSS classnames are written as `${prefix}${name}+${count}:${line}:${column}`:
 
-- **Prefix** defaults to `css-`. Listed in [options][1]
+- **Prefix** defaults to `css-`. Listed in [options][2]
 
 - **Name** is a filename (basename with extension) unless it's an _index_ file
-  and [option "classUseFolder"][1] is true, then it's the folder name.
+  and [option "classUseFolder"][2] is true, then it's the folder name.
 
 - **Count** is for conflict resolution as same-name files are encountered
   throughout the project. It increments from 0. This is an alternative to
   hashing, which _styled-components_ and friends often use.
 
   Note there was an attempt to use the shortest conflict-free file path but
-  isn't possible due to a limtation from Babel; see [the design notes][2].
+  isn't possible due to a limtation from Babel; see [the design notes][3].
+
+## Examples
+
+You can see the _sandbox/_ directory of this repo for some test cases, or see
+how it's used in an application at https://github.com/heyheyhello/stayknit
 
 ## Pitfalls
 
-_This macro doesn't understand JavaScript (or TypeScript)._
+At compile time, there is no runtime to understand JS. This is probably why
+nearly all CSS-in-JS libraries operate are at runtime (in browser).
 
-Probably why all CSS-in-JS libraries are at runtime. There is no runtime in this
-macro. That's the most important thing to remember. Any kind of clever language
-use beyond basic bare-bones assignment expressions aren't understood.
+So keep that in mind. Below are some common pitfalls where the compiler won't
+understand your code:
 
 ### Macro export references
 
-The macro is given a list of AST references to its exports. These are processed
-and understood in isolation.
+The `decl`, `css`, and `injectGlobal` functions are processed and understood in
+isolation by the compiler.
 
-Any kind of renaming or modification won't work. The below doesn't work since
-the macro only sees the line about `... = css` and then throws an error because
-it's not in the form `` css`...` ``:
+This means any kind of renaming or modification won't work. In the example
+below, the macro only sees the line about `... = css` and then immediately
+throws an error since it's not a tag template like `` css`...` ``:
 
 ```ts
 import { css } from 'styletakeout.macro';
 const somethingElse = css;
 const classname = somethingElse`padding: 5rem`;
 ```
+
 ### Variable usage
 
 The `decl` macro references variables you've defined as an object in your Babel
@@ -188,6 +239,6 @@ for (const [k, v] of Object.entries(textSizes)) {
 }
 ```
 
-[1]: #options
-[2]: https://gitlab.com/nthm/styletakeout/-/tree/work/notes.md
-[3]: https://github.com/kentcdodds/babel-plugin-macros/issues/155
+[1]: https://github.com/heyheyhello/stayknit/blob/9c8f705dd8d688dc4c8a9f0ee4cd98bd97861d5c/src/styles.ts
+[2]: #Options
+[3]: https://gitlab.com/nthm/styletakeout/-/tree/work/notes.md

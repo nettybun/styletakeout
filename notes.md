@@ -36,7 +36,7 @@ doesn't let people get too deep into variable tricks - it's JSON.
 
 This macro supports the `babel --watch` command to update the takeout on each
 save in your editor. Unfortunately there's [no way to know when Babel is done
-compiling][3] and files are processed one at a time in isolation. I managed to
+compiling][1] and files are processed one at a time in isolation. I managed to
 get around this by adding a `process.on('exit', ...)` listener, since Babel
 _must_ be done if the process is exiting. This works for any tools that are Node
 processes like Webpack/Rollup, too. However, for `--watch` the process hangs
@@ -73,3 +73,5 @@ Settled on an auto-incrementing number `+N` since it _at least_ gives you the
 filename at a glance, which is more meaningful than a hash. The mapping of N to
 the full filepath is written alongside the CSS takeout for when you need to find
 the source.
+
+[1]: https://github.com/kentcdodds/babel-plugin-macros/issues/155
