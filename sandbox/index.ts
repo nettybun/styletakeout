@@ -21,11 +21,11 @@ declare module 'styletakeout.macro' {
 
 const exportedVariable = decl.color.blue.c400;
 const styles = css`
-  padding: 5px;
+  padding: 15px;
   background-color: ${decl.color.blue.c500};
   ${decl.multiline}
   /* Note that .lg and .md error since TS can't ensure they're defined */
-  ${decl.size.sm}
+  margin: ${decl.size.lg}
 `;
 
 console.log(styles);
