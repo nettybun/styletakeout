@@ -43,14 +43,14 @@ _/build/takeout.css_
 
 ## API
 
-- `decl`: This object accesses variables defined in your Babel config
-- `` css`...` ``: CSS is placed in a class and moved to the output file. The
-  source code is replaced with a string of the classname.
-- `` injectGlobal`...` ``: Global CSS is directly moved to the output file
-  without a classname. The source code is removed entirely.
+- `decl`: Object to access variables defined in your Babel config
+- `` css`...` ``: CSS which is wrapped in a class and moved to the takeout file.
+  In source code, the tag template is replaced with a string of the classname.
+- `` injectGlobal`...` ``: Global CSS which is directly moved to the takeout
+  file without a class. In source code the tag template is removed entirely.
 
-The names for _css_ and _injectGlobal_ are used by other CSS-in-JS libraries
-like styled-components. This means editors like VSCode can provide syntax
+The names _css_ and _injectGlobal_ are used by other CSS-in-JS libraries like
+styled-components. This means editors like VSCode can provide syntax
 highlighting, linting, and autocomplete out of the box.
 
 All CSS is processed with Stylis and beautified with CSSBeautify. This can be
