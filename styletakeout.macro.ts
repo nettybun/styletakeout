@@ -14,7 +14,7 @@ type JSONValue = JSONObject | string | number | null
 type JSONObject = { [key: string]: JSONValue }
 type ConfigOptions = {
   /** Variables */
-  decl: JSONObject,
+  variables: JSONObject,
   /** Prefix for all CSS classes: i.e `css-` will yield `css-file.tsx:32:16` */
   classPrefix: string,
   /** If the file is `index`, use the folder name only */
@@ -36,7 +36,6 @@ type ConfigOptions = {
 
 declare module 'babel-plugin-macros' {
   interface References {
-    decl?: NodePath[]
     injectGlobal?: NodePath[]
     css?: NodePath[]
   }
@@ -47,7 +46,7 @@ declare module 'babel-plugin-macros' {
 
 // Default config and then becomes resolved config at runtime
 const opts: ConfigOptions = {
-  decl: {},
+  variables: {},
   classPrefix: 'css-',
   classUseFolder: true,
   outputFile: 'build/takeout.css',
@@ -130,7 +129,7 @@ const mergeTemplateExpression = (node: t.Node): string => {
     const exp = expressions[i];
     if (!t.isStringLiteral(exp)) {
       throw theirError(
-        'CSS can only reference decl variables and strings in ${} expressions.', exp.loc);
+        'CSS can only reference import variables and strings in ${} expressions.', exp.loc);
     }
     string += quasis[i].value.raw;
     string += exp.value;
@@ -165,26 +164,62 @@ const sourceLocation = (node: t.Node, relPath: string) => {
   return `${name}:${node.loc.start.line}:${node.loc.start.column}`;
 };
 
-const traverseDecl = (objectPath: string[]) => {
-  let obj: JSONValue = opts.decl;
-  let traversedPath = 'decl';
+const traverseMacroVariable = (objectPath: string[]): JSONValue => {
+  // This is mutated over time to replace "$values" with real object references
+  let obj: JSONValue = opts.variables;
+  let traversedPath = 'variables';
   for (const key of objectPath) {
-    if (typeof obj === 'object' && obj !== null) {
-      if (key in obj) {
-        obj = obj[key];
-      } else {
-        throw `Property "${key}" doesn't exist on ${traversedPath}`;
-      }
-    } else {
+    if (obj === null || typeof obj !== 'object') {
       const type = obj === null ? 'null' : typeof obj;
-      throw `Trying to access "${key}" on ${type} at ${traversedPath}`;
+      throw `Trying to access "${key}" on terminated "${type}" at macro variable "${traversedPath}"`;
+    }
+    if (key in obj) {
+      const value: JSONValue = obj[key];
+      if (typeof value === 'string' && value[0] === '$') {
+        try {
+          console.log(`Translated "${key}" to "${value.substring(1)}" in "${objectPath.join('.')}"`);
+          obj[key] = traverseMacroVariable(value.substring(1).split('.'));
+        } catch (err) {
+          throw `Error resolving alias at "${objectPath.join('.')}": ${err as string}`;
+        }
+      }
+      obj = obj[key];
+    } else {
+      throw `Property "${key}" doesn't exist on macro variable "${traversedPath}"`;
     }
     traversedPath += `.${key}`;
   }
-  if (obj !== null && typeof obj === 'object') {
-    throw `${traversedPath} is an object`;
+  console.log('Returning', obj);
+  return obj;
+};
+
+const macroVariableHandler = (referencePath: NodePath<t.Node>) => {
+  const refNode = referencePath.node;
+  if (!t.isIdentifier(refNode)) {
+    throw theirError(
+      `Macro variables must be treated as identifiers. Was ${refNode.type}`, refNode.loc);
   }
-  return String(obj);
+  const objectPath: string[] = [refNode.name];
+  let parentPath = referencePath as NodePath<t.MemberExpression>;
+  while (t.isMemberExpression(parentPath.parentPath.node)) {
+    parentPath = parentPath.parentPath as NodePath<t.MemberExpression>;
+    const { node } = parentPath;
+    if (!t.isIdentifier(node.property)) {
+      throw theirError(
+        'Properties of macro variables must be treated as identifiers', node.loc);
+    }
+    objectPath.push(node.property.name);
+  }
+  let variableValue: JSONValue;
+  try {
+    variableValue = traverseMacroVariable(objectPath);
+    if (variableValue !== null && typeof variableValue === 'object') {
+      throw `${objectPath.join('.')} is an object`;
+    }
+  } catch (err) {
+    throw theirError(err as string, refNode.loc);
+  }
+  parentPath.replaceWith(t.stringLiteral(String(variableValue)));
 };
 
 const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
@@ -196,53 +231,18 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
     macroCalled = true;
   }
 
-  const { decl = [], injectGlobal = [], css = [] } = references;
+  const { injectGlobal = [], css = [], ...variableImports } = references;
   // This is a bad variable name; it's not the only the name...
   const { filename: absPath } = state;
   // Set global for sourceError
   activeFile = absPath;
   const relPath = path.relative(process.cwd(), absPath);
 
-  decl.forEach(referencePath => {
-    const refNode = referencePath.node;
-    if (!t.isIdentifier(refNode)) {
-      throw theirError(
-        `Macro decl must be treated as an identifier. Was ${refNode.type}`, refNode.loc);
-    }
-    const objectPath: string[] = [];
-    let parentPath = referencePath as NodePath<t.MemberExpression>;
-    while (t.isMemberExpression(parentPath.parentPath.node)) {
-      parentPath = parentPath.parentPath as NodePath<t.MemberExpression>;
-      const { node } = parentPath;
-      if (!t.isIdentifier(node.property)) {
-        throw theirError(
-          'Properties of decl must be treated as identifiers', node.loc);
-      }
-      objectPath.push(node.property.name);
-    }
-    if (objectPath.length === 0) {
-      throw theirError(
-        'Must read decl as an object like "decl.a.b.c"', refNode.loc);
-    }
-    let declValue: string;
-    try {
-      declValue = traverseDecl(objectPath);
-    } catch (err) {
-      throw theirError(err as string, refNode.loc);
-    }
-    // Only resolve aliases once (one level deep). Variables should be simple
-    if (declValue.startsWith('decl.')) {
-      try {
-        const objectPathAlias = declValue.split('.');
-        objectPathAlias.shift();
-        declValue = traverseDecl(objectPathAlias);
-      } catch (err) {
-        const og = `decl.${objectPath.join('.')}`;
-        throw theirError(`Error resolving alias at "${og}": ${err as string}`, refNode.loc);
-      }
-    }
-    parentPath.replaceWith(t.stringLiteral(declValue));
-  });
+  // Variable handling
+  for (const [variableImport, arr] of Object.entries(variableImports)) {
+    console.log('Found variable import', variableImport);
+    arr.forEach(macroVariableHandler);
+  }
 
   injectGlobal.forEach(referencePath => {
     const { parentPath } = referencePath;

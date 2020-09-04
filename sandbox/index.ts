@@ -1,30 +1,40 @@
-import { decl, css } from 'styletakeout.macro';
+import { decl, colors, css } from 'styletakeout.macro';
 import { otherStyles } from './imported.js';
 
 // TypeScript is only for intellisense
 // TODO: Use the detailed config from stayknit
 declare module 'styletakeout.macro' {
   // Use the type that works for you. The real value is in the JSON config
-  type Hex = { _ : '' } & string
-  interface Decl {
+  export const decl: {
     primaryPurpleAccent: Hex
-    color: {
-      blue: {
-        c400: Hex
-        c500: Hex
-      }
-    }
     multiline: ''
-  }
+    color: typeof colors;
+    size: typeof sizes;
+  };
+  type Hex = { _ : '' } & string
+  export const colors: {
+    blue: {
+      c400: Hex
+      c500: Hex
+    }
+  };
+  type Rem = { _ : '' } & string
+  export const sizes: {
+    sm: Rem
+    md: Rem
+    lg: Rem
+  };
 }
 
-const exportedVariable = decl.color.blue.c400;
+const exportedVariable = colors.blue.c400;
 const styles = css`
   padding: 15px;
-  background-color: ${decl.color.blue.c500};
+  background-color: ${colors.blue.c500};
   ${decl.multiline}
   /* Note that .lg and .md error since TS can't ensure they're defined */
-  margin: ${decl.size.lg}
+  margin-top: ${decl.size.lg};
+  margin-left: ${decl.size.md};
+  margin-right: ${decl.size.sm};
 `;
 
 console.log(styles);

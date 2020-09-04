@@ -2,15 +2,19 @@
   "name": "styletakeout.macro",
   "version": "1.0.0",
   "description": "Take CSS out of JS at compile time",
-  "main": "styletakeout.macro.js",
-  "types": "index.d.ts",
   "keywords": [
     "css",
     "styled-components",
     "babel-plugin-macros"
   ],
-  "author": "Gen Hames",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/nthm/styletakeout"
+  },
+  "author": "Gen Hames",
+  "main": "styletakeout.macro.js",
+  "types": "index.d.ts",
   "scripts": {
     "build": "mkdir -p publish && cp *.ts package.json readme.md publish/ && npm run babel",
     "babel": "babel styletakeout.macro.ts --out-dir publish --extensions .ts",
@@ -23,19 +27,19 @@
     "stylis": "^4.0.2"
   },
   "devDependencies": {
-    "@babel/cli": "^7.10.5",
-    "@babel/core": "^7.11.0",
+    "@babel/cli": "^7.11.6",
+    "@babel/core": "^7.11.6",
     "@babel/plugin-transform-modules-commonjs": "^7.10.4",
     "@babel/plugin-transform-typescript": "^7.11.0",
     "@types/babel-plugin-macros": "^2.8.2",
     "@types/common-tags": "^1.8.0",
     "@types/cssbeautify": "^0.3.1",
-    "@types/node": "^14.0.27",
+    "@types/node": "^14.6.4",
     "@types/stylis": "^4.0.0",
-    "@typescript-eslint/eslint-plugin": "^3.8.0",
-    "@typescript-eslint/parser": "^3.8.0",
-    "eslint": "^7.6.0",
+    "@typescript-eslint/eslint-plugin": "^4.0.1",
+    "@typescript-eslint/parser": "^4.0.1",
+    "eslint": "^7.8.1",
     "styletakeout.macro": "file:publish",
-    "typescript": "^3.9.7"
+    "typescript": "^4.0.2"
   }
 }

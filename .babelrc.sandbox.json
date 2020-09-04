@@ -9,11 +9,16 @@
           "timing": true,
           // "stdoutPatch": false,
           // "beautify": false,
-          "decl": {
-            "primaryPurpleAccent": "decl.color.purple.c100",
-            "multiline": "\n  content: 'Decl-Multiline';\n",
+          "variables": {
+            "decl": {
+              "primaryPurpleAccent": "$colors.purple.c100",
+              "declTestPurpleAccent": "$decl.color.purple.c100",
+              "multiline": "\n  content: 'Decl-Multiline';\n",
+              "color": "$colors",
+              "size": "$sizes"
+            },
             // These colours are from TailwindCSS
-            "color": {
+            "colors": {
               "black": "#000",
               "white": "#fff",
               "gray": {
@@ -127,7 +132,7 @@
                 "c900": "#702459"
               }
             },
-            "size": {
+            "sizes": {
               "sm": "2rem",
               "md": "4rem",
               "lg": "8rem"

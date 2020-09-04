@@ -1,7 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface Decl {}
-/** Variable store */
-export const decl: Decl;
 /** Takeout css`` statement is replaced with a string of a unique classname */
 export function css(statics: TemplateStringsArray, ...variables: string[]): string;
 /** Takeout injectGlobal`` statement is removed entirely */
