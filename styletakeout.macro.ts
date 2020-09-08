@@ -177,7 +177,7 @@ const traverseMacroVariable = (objectPath: string[]): JSONValue => {
       const value: JSONValue = obj[key];
       if (typeof value === 'string' && value[0] === '$') {
         try {
-          console.log(`Translated "${key}" to "${value.substring(1)}" in "${objectPath.join('.')}"`);
+          // console.log(`Translated "${key}" to "${value.substring(1)}" in "${objectPath.join('.')}"`);
           obj[key] = traverseMacroVariable(value.substring(1).split('.'));
         } catch (err) {
           throw `Error resolving alias at "${objectPath.join('.')}": ${err as string}`;
@@ -189,7 +189,6 @@ const traverseMacroVariable = (objectPath: string[]): JSONValue => {
     }
     traversedPath += `.${key}`;
   }
-  console.log('Returning', obj);
   return obj;
 };
 
@@ -239,8 +238,7 @@ const styletakeoutMacro: MacroHandler = ({ references, state, config }) => {
   const relPath = path.relative(process.cwd(), absPath);
 
   // Variable handling
-  for (const [variableImport, arr] of Object.entries(variableImports)) {
-    console.log('Found variable import', variableImport);
+  for (const arr of Object.values(variableImports)) {
     arr.forEach(macroVariableHandler);
   }
 
