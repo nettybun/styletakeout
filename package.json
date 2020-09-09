@@ -18,7 +18,7 @@
   "scripts": {
     "build": "mkdir -p publish && cp *.ts package.json readme.md publish/ && npm run babel",
     "babel": "babel styletakeout.macro.ts --out-dir publish --extensions .ts",
-    "sandbox": "babel sandbox --config-file ./.babelrc.sandbox.json --out-dir sandbox/build --extensions .ts"
+    "sandbox": "babel sandbox --config-file ./sandbox/.babelrc.json --out-dir sandbox/build --extensions .ts"
   },
   "dependencies": {
     "babel-plugin-macros": "^2.8.0",
@@ -39,7 +39,6 @@
     "@typescript-eslint/eslint-plugin": "^4.0.1",
     "@typescript-eslint/parser": "^4.0.1",
     "eslint": "^7.8.1",
-    "styletakeout.macro": "file:publish",
     "typescript": "^4.0.2"
   }
 }

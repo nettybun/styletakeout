@@ -1,0 +1,8 @@
+{
+  "name": "styletakeout-sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "styletakeout.macro": "../publish"
+  }
+}
