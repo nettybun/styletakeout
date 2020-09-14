@@ -256,6 +256,6 @@ for (const [k, v] of Object.entries(textSizes)) {
 It's not complicated. Just look sideways a bit to get the hang of it.
 
 [1]: https://gitlab.com/nthm/styletakeout/-/tree/work/sandbox/.babelrc.json
-[2]: https://github.com/heyheyhello/stayknit/blob/work/src/styles.ts
+[2]: https://github.com/heyheyhello/stayknit/blob/work/src/styletakeout.d.ts
 [3]: #Options
 [4]: https://gitlab.com/nthm/styletakeout/-/tree/work/notes.md
