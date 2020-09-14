@@ -151,23 +151,24 @@ You'll find this example in _sandbox/index.ts_. Notice that the object values
 don't matter. You can use `string` but a branded type (as shown above) will
 provide a helpful tooltip in your editor to hint the type.
 
-[Here's a more complicated example using TailwindCSS colours][2].
+Here's a more complicated example copying TailwindCSS colours: [d.ts][3] and
+[.babelrc.json][2]
 
 ## Classname structure
 
 CSS classnames are written as `${prefix}${name}+${count}:${line}:${column}`:
 
-- **Prefix** defaults to `css-`. Listed in [options][2]
+- **Prefix** defaults to `css-`. Listed in [options][4]
 
 - **Name** is a filename (basename with extension) unless it's an _index_ file
-  and [option "classUseFolder"][3] is true, then it's the folder name.
+  and [option "classUseFolder"][4] is true, then it's the folder name.
 
 - **Count** is for conflict resolution as same-name files are encountered
   throughout the project. It increments from 0. This is an alternative to
   hashing, which _styled-components_ and friends often use.
 
   Note there was an attempt to use the shortest conflict-free file path but
-  isn't possible due to a limtation from Babel; see [the design notes][4].
+  isn't possible due to a limtation from Babel; see [the design notes][5].
 
 ## Examples
 
@@ -256,6 +257,7 @@ for (const [k, v] of Object.entries(textSizes)) {
 It's not complicated. Just look sideways a bit to get the hang of it.
 
 [1]: https://gitlab.com/nthm/styletakeout/-/tree/work/sandbox/.babelrc.json
-[2]: https://github.com/heyheyhello/stayknit/blob/work/src/styletakeout.d.ts
-[3]: #Options
-[4]: https://gitlab.com/nthm/styletakeout/-/tree/work/notes.md
+[2]: https://github.com/heyheyhello/stayknit/blob/work/.babelrc.json
+[3]: https://github.com/heyheyhello/stayknit/blob/work/src/styletakeout.d.ts
+[4]: #Options
+[5]: https://gitlab.com/nthm/styletakeout/-/tree/work/notes.md
